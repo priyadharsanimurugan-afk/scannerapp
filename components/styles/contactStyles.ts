@@ -1,7 +1,12 @@
-import { StyleSheet } from 'react-native';
+// components/styles/contactStyles.ts
+import { StyleSheet, Dimensions } from 'react-native';
 import { colors } from '@/constants/colors';
 
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
 export const contactsStyles = StyleSheet.create({
+
+  // ─── Screen ───────────────────────────────────────────────
   container: {
     flex: 1,
     backgroundColor: colors.navy,
@@ -9,6 +14,8 @@ export const contactsStyles = StyleSheet.create({
   body: {
     flex: 1,
   },
+
+  // ─── Header ───────────────────────────────────────────────
   header: {
     backgroundColor: colors.navy,
     paddingHorizontal: 24,
@@ -55,6 +62,8 @@ export const contactsStyles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+
+  // ─── Chips ────────────────────────────────────────────────
   chips: {
     flexDirection: 'row',
     paddingHorizontal: 16,
@@ -70,6 +79,7 @@ export const contactsStyles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 20,
     borderWidth: 1.5,
+    marginRight: 8,
   },
   chipActive: {
     backgroundColor: colors.navy,
@@ -89,6 +99,8 @@ export const contactsStyles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
   },
+
+  // ─── Search ───────────────────────────────────────────────
   searchWrap: {
     marginHorizontal: 16,
     marginVertical: 10,
@@ -130,6 +142,8 @@ export const contactsStyles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+
+  // ─── Count / Sort ─────────────────────────────────────────
   countBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -157,6 +171,8 @@ export const contactsStyles = StyleSheet.create({
     fontWeight: '700',
     color: colors.amberDark,
   },
+
+  // ─── Contact List ─────────────────────────────────────────
   contactList: {
     paddingHorizontal: 16,
     gap: 10,
@@ -174,20 +190,6 @@ export const contactsStyles = StyleSheet.create({
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 2 },
     elevation: 4,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  contactCardActive: {
-    transform: [{ scale: 0.98 }],
-  },
-  contactBar: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: 3,
-    backgroundColor: colors.amber,
-    opacity: 0,
   },
   contactAvatar: {
     width: 46,
@@ -268,5 +270,487 @@ export const contactsStyles = StyleSheet.create({
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+
+  // ─── Contact Detail Modal ─────────────────────────────────
+  detailOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'flex-end',
+  },
+  detailSheet: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    maxHeight: SCREEN_HEIGHT * 0.92,
+    overflow: 'hidden',
+  },
+  detailHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: colors.border,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  detailTopBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  detailCloseBtn: {
+    width: 36,
+    height: 36,
+    backgroundColor: colors.phoneBg,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  detailTopTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  detailActionBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(245,159,10,0.3)',
+    backgroundColor: 'rgba(245,159,10,0.08)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // Hero section inside detail
+  detailHero: {
+    backgroundColor: colors.navy,
+    alignItems: 'center',
+    paddingVertical: 28,
+    paddingHorizontal: 24,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  detailHeroGlow: {
+    position: 'absolute',
+    top: -40,
+    right: -40,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: colors.amber,
+    opacity: 0.1,
+  },
+  detailAvatar: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+    borderWidth: 3,
+    borderColor: 'rgba(245,159,10,0.4)',
+  },
+  detailAvatarText: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: colors.white,
+  },
+  detailName: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.white,
+    textAlign: 'center',
+  },
+  detailDesignation: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.6)',
+    marginTop: 3,
+    textAlign: 'center',
+  },
+  detailCompany: {
+    fontSize: 13,
+    color: colors.amber,
+    fontWeight: '700',
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  detailTag: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 20,
+    marginTop: 10,
+  },
+  detailTagText: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+
+  // Business card images row
+  detailCardsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: colors.phoneBg,
+  },
+  detailCardBox: {
+    flex: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: colors.navy,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  detailCardImage: {
+    width: '100%',
+    aspectRatio: 1.6,
+  },
+  detailCardPlaceholder: {
+    width: '100%',
+    aspectRatio: 1.6,
+    backgroundColor: colors.navy,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 4,
+  },
+  detailCardPlaceholderText: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.35)',
+    fontWeight: '600',
+  },
+  detailCardBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.amberLight,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    justifyContent: 'center',
+  },
+  detailCardBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.amberDark,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+
+  // Detail body sections
+  detailBody: {
+    padding: 16,
+    backgroundColor: colors.phoneBg,
+  },
+  detailSection: {
+    backgroundColor: colors.white,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  detailSectionTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.muted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 10,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 7,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  detailIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: 'rgba(245,159,10,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  detailRowLabel: {
+    fontSize: 10,
+    color: colors.muted,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+    marginBottom: 1,
+  },
+  detailRowValue: {
+    fontSize: 14,
+    color: colors.text,
+    fontWeight: '600',
+  },
+  detailServiceTag: {
+    backgroundColor: colors.amberLight,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 16,
+  },
+  detailServiceText: {
+    fontSize: 12,
+    color: colors.amberDark,
+    fontWeight: '600',
+  },
+  detailEditBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: colors.amber,
+    borderRadius: 14,
+    paddingVertical: 16,
+    marginTop: 4,
+  },
+  detailEditBtnText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.navy,
+  },
+
+  // ─── Image Fullscreen Viewer ──────────────────────────────
+  imgViewerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  imgViewerClose: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 10,
+  },
+  imgViewerLabel: {
+    position: 'absolute',
+    top: 54,
+    left: 20,
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  imgViewerImage: {
+    width: SCREEN_WIDTH - 40,
+    height: SCREEN_WIDTH * 0.65,
+    borderRadius: 12,
+  },
+  imgViewerPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // ─── Edit Sheet ───────────────────────────────────────────
+  editOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'flex-end',
+  },
+  editSheet: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    maxHeight: SCREEN_HEIGHT * 0.88,
+    padding: 20,
+    paddingTop: 12,
+  },
+  editHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: colors.border,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  editHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 18,
+  },
+  editTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  editSectionHeading: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.amber,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginTop: 18,
+    marginBottom: 10,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.amberLight,
+  },
+  editField: {
+    marginBottom: 12,
+  },
+  editFieldLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.muted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  editFieldInput: {
+    backgroundColor: colors.phoneBg,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: 10,
+    paddingVertical: 11,
+    paddingHorizontal: 14,
+    fontSize: 14,
+    color: colors.text,
+  },
+  editSaveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: colors.amber,
+    borderRadius: 14,
+    paddingVertical: 16,
+    marginTop: 20,
+  },
+  editSaveBtnText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.navy,
+  },
+
+  // ─── Legacy modal styles (kept for backward compat) ───────
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '90%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  modalCloseBtn: { padding: 4 },
+  modalActions: { flexDirection: 'row', gap: 12 },
+  modalActionBtn: {
+    padding: 8,
+    backgroundColor: colors.phoneBg,
+    borderRadius: 8,
+  },
+  modalImageContainer: {
+    width: '100%',
+    height: 200,
+    backgroundColor: colors.phoneBg,
+  },
+  modalImage: { width: '100%', height: '100%' },
+  modalInfoContainer: { padding: 16 },
+  modalAvatarSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalAvatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  modalAvatarText: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: colors.white,
+  },
+  modalNameSection: { flex: 1 },
+  modalName: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  modalDesignation: {
+    fontSize: 14,
+    color: colors.muted,
+    marginBottom: 8,
+  },
+  modalTag: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+  },
+  modalTagText: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  modalSection: { marginBottom: 20 },
+  modalSectionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  modalSectionContent: {
+    fontSize: 16,
+    color: colors.text,
+    fontWeight: '500',
+  },
+  modalSubContent: {
+    fontSize: 14,
+    color: colors.muted,
+    marginTop: 2,
+  },
+  modalContactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 8,
+  },
+  modalContactText: {
+    fontSize: 14,
+    color: colors.text,
+    flex: 1,
+  },
+  modalServices: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  modalServiceTag: {
+    backgroundColor: colors.amberLight,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 16,
+  },
+  modalServiceText: {
+    fontSize: 12,
+    color: colors.amberDark,
+    fontWeight: '500',
   },
 });

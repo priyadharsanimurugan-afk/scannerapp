@@ -87,7 +87,7 @@ export const AuthForms: React.FC<AuthFormsProps> = ({
           <Icon name="person-outline" size={16} color={colors.muted} style={loginStyles.inputIcon} />
           <TextInput
             style={loginStyles.input}
-            placeholder="JohnDoe"
+            placeholder="your name"
             placeholderTextColor={colors.inputPlaceholder}
             value={userName}
             onChangeText={setUserName}
@@ -102,10 +102,15 @@ export const AuthForms: React.FC<AuthFormsProps> = ({
           <TextInput
             style={loginStyles.input}
             keyboardType="phone-pad"
+              maxLength={10}
+                onChangeText={(text) => {
+                  const cleaned = text.replace(/[^0-9]/g, ""); // allow only digits
+                  setPhoneNumber(cleaned);
+                }}
             placeholder="9876543210"
             placeholderTextColor={colors.inputPlaceholder}
             value={phoneNumber}
-            onChangeText={setPhoneNumber}
+         
           />
         </View>
       </View>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,28 +6,103 @@ import {
   TouchableOpacity,
   StatusBar,
   TextInput,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { settingsStyles } from '@/components/styles/settingsStyles';
 import { colors } from '@/constants/colors';
+import { useProfile } from '@/hooks/useProfile';
+import { useDashboard } from '@/hooks/useDashboard';
+import { router } from 'expo-router';
 
 export default function SettingsScreen() {
   const [toast, setToast] = useState({ show: false, msg: '' });
-  const [firstName, setFirstName] = useState('Alex');
-  const [lastName, setLastName] = useState('Johnson');
-  const [email, setEmail] = useState('alex@company.com');
-  const [company, setCompany] = useState('Acme Corp');
-  const [jobTitle, setJobTitle] = useState('Product Designer');
-  const [notifications, setNotifications] = useState(true);
+  const { profile, loading: profileLoading, editProfile ,fetchProfile } = useProfile();
+  const { summary, loading: dashboardLoading } = useDashboard();
+  const [isEditing, setIsEditing] = useState(false); // new edit mode
+  // Local state for editable fields
+  const [userName, setUserName] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [email, setEmail] = useState('');
+
+  // Update local state when profile loads
+useEffect(() => {
+  if (profile) {
+    setUserName(profile.userName || '');
+    setPhoneNumber(profile.phoneNumber || '');
+    setEmail(profile.email || '');
+  }
+}, [profile]); 
 
   const showToast = (msg: string) => {
     setToast({ show: true, msg });
     setTimeout(() => setToast({ show: false, msg: '' }), 2500);
   };
 
-  const handleSave = () => {
-    showToast('Profile saved successfully!');
+const handleEditPress = () => setIsEditing(prev => !prev);
+
+// Save changes
+const handleSave = async () => {
+  try {
+    await editProfile(userName, phoneNumber);
+
+    // update local UI instantly
+    setUserName(userName);
+    setPhoneNumber(phoneNumber);
+
+    showToast("Profile saved successfully!");
+    setIsEditing(false);
+
+    // optional background refresh
+    fetchProfile();
+
+  } catch (error) {
+    showToast("Failed to save profile");
+  }
+};
+
+const handleLogout = () => {
+  Alert.alert(
+    "Confirm Logout",
+    "Are you sure you want to log out?",
+    [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+      {
+        text: "Logout",
+        style: "destructive",
+        onPress: () => {
+          router.replace("/login");
+        },
+      },
+    ],
+    { cancelable: true }
+  );
+};
+
+  // Get initials for avatar
+  const getInitials = () => {
+    if (!userName) return 'U';
+    return userName
+      .split(' ')
+      .map(word => word[0])
+      .join('')
+      .toUpperCase()
+      .substring(0, 2);
   };
+
+  const isLoading = profileLoading || dashboardLoading;
+
+  if (isLoading) {
+    return (
+      <View style={[settingsStyles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={colors.amber} />
+      </View>
+    );
+  }
 
   return (
     <View style={settingsStyles.container}>
@@ -44,10 +119,10 @@ export default function SettingsScreen() {
       <ScrollView
         style={settingsStyles.body}
         showsVerticalScrollIndicator={false}
-         contentContainerStyle={{
-                  paddingBottom: 20,
-                  backgroundColor: colors.phoneBg,
-                }}
+        contentContainerStyle={{
+          paddingBottom: 20,
+          backgroundColor: colors.phoneBg,
+        }}
       >
         {/* Profile Hero */}
         <View style={settingsStyles.profileHero}>
@@ -55,15 +130,16 @@ export default function SettingsScreen() {
           
           <View style={settingsStyles.heroTop}>
             <Text style={settingsStyles.heroTitle}>Settings</Text>
-            <TouchableOpacity style={settingsStyles.heroEdit}>
-              <Icon name="pencil-outline" size={14} color={colors.amber} />
-            </TouchableOpacity>
+            <TouchableOpacity style={settingsStyles.heroEdit} onPress={handleEditPress}>
+  <Icon name={isEditing ? "close-outline" : "pencil-outline"} size={14} color={colors.amber} />
+</TouchableOpacity>
+
           </View>
 
           <View style={settingsStyles.heroBody}>
             <View style={settingsStyles.avatarWrap}>
               <View style={settingsStyles.avatar}>
-                <Text style={settingsStyles.avatarText}>AJ</Text>
+                <Text style={settingsStyles.avatarText}>{getInitials()}</Text>
               </View>
               <View style={settingsStyles.avatarEdit}>
                 <Icon name="camera" size={9} color={colors.navy} />
@@ -71,13 +147,15 @@ export default function SettingsScreen() {
             </View>
             
             <View style={settingsStyles.heroInfo}>
-              <Text style={settingsStyles.heroName}>Alex Johnson</Text>
-              <Text style={settingsStyles.heroEmail}>alex@company.com</Text>
+              <Text style={settingsStyles.heroName}>{userName || 'User'}</Text>
+              <Text style={settingsStyles.heroEmail}>{email}</Text>
               
               <View style={settingsStyles.heroBadges}>
                 <View style={[settingsStyles.badge, settingsStyles.badgeAmber]}>
                   <Icon name="star" size={9} color={colors.navy} />
-                  <Text style={settingsStyles.badgeTextAmber}>Free Plan</Text>
+                  <Text style={settingsStyles.badgeTextAmber}>
+                    {profile?.accountType || 'Free'} Plan
+                  </Text>
                 </View>
                 <View style={[settingsStyles.badge, settingsStyles.badgeGreen]}>
                   <Icon name="ellipse" size={7} color={colors.partner} />
@@ -91,75 +169,75 @@ export default function SettingsScreen() {
         {/* Mini Stats */}
         <View style={settingsStyles.miniStats}>
           <View style={settingsStyles.miniStat}>
-            <Text style={settingsStyles.statValue}>128</Text>
+            <Text style={settingsStyles.statValue}>{summary?.totalContactsCount || 0}</Text>
             <Text style={settingsStyles.statLabel}>Contacts</Text>
           </View>
           <View style={[settingsStyles.miniStat, { borderLeftWidth: 1, borderLeftColor: colors.border }]}>
-            <Text style={settingsStyles.statValue}>156</Text>
+            <Text style={settingsStyles.statValue}>{summary?.totalScansUsed || 0}</Text>
             <Text style={settingsStyles.statLabel}>Scanned</Text>
           </View>
           <View style={[settingsStyles.miniStat, { borderLeftWidth: 1, borderLeftColor: colors.border }]}>
-            <Text style={settingsStyles.statValue}>34</Text>
+            <Text style={settingsStyles.statValue}>{summary?.totalExportsCount || 0}</Text>
             <Text style={settingsStyles.statLabel}>Exports</Text>
           </View>
         </View>
 
-        {/* Profile Form */}
+        {/* Profile Form - Only show editable fields from API */}
         <Text style={settingsStyles.sectionLabel}>Profile Information</Text>
         <View style={settingsStyles.formCard}>
           <View style={settingsStyles.formInner}>
-            <View style={settingsStyles.formRow}>
-              <View style={settingsStyles.formGroup}>
-                <Text style={settingsStyles.formLabel}>First Name</Text>
-                <TextInput
-                  style={settingsStyles.formInput}
-                  value={firstName}
-                  onChangeText={setFirstName}
-                />
-              </View>
-              <View style={settingsStyles.formGroup}>
-                <Text style={settingsStyles.formLabel}>Last Name</Text>
-                <TextInput
-                  style={settingsStyles.formInput}
-                  value={lastName}
-                  onChangeText={setLastName}
-                />
-              </View>
+            <View style={settingsStyles.formGroup}>
+              <Text style={settingsStyles.formLabel}>Username</Text>
+            <TextInput
+  style={settingsStyles.formInput}
+  value={userName}
+  onChangeText={setUserName}
+  placeholder="Enter username"
+  placeholderTextColor={colors.muted}
+  editable={isEditing}
+/>
+            </View>
+
+            <View style={settingsStyles.formGroup}>
+              <Text style={settingsStyles.formLabel}>Phone Number</Text>
+             <TextInput
+  style={settingsStyles.formInput}
+  value={phoneNumber}
+  onChangeText={setPhoneNumber}
+  placeholder="Enter phone number"
+  placeholderTextColor={colors.muted}
+  keyboardType="phone-pad"
+  editable={isEditing}
+/>
             </View>
 
             <View style={settingsStyles.formGroup}>
               <Text style={settingsStyles.formLabel}>Email Address</Text>
               <TextInput
-                style={settingsStyles.formInput}
+                style={[settingsStyles.formInput, { color: colors.muted }]}
                 value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
+                editable={false} // Email might not be editable based on your API
               />
             </View>
+<TouchableOpacity
+  style={[
+    settingsStyles.saveButton,
+    (!isEditing || profileLoading) && settingsStyles.saveButtonDisabled
+  ]}
+  onPress={handleSave}
+  disabled={!isEditing || profileLoading}
+>
+  {profileLoading ? (
+    <ActivityIndicator size="small" color={colors.navy} />
+  ) : (
+    <>
+      <Icon name="checkmark" size={14} color={colors.navy} />
+      <Text style={settingsStyles.saveButtonText}>Save Changes</Text>
+    </>
+  )}
+</TouchableOpacity>
 
-            <View style={settingsStyles.formGroup}>
-              <Text style={settingsStyles.formLabel}>Company</Text>
-              <TextInput
-                style={settingsStyles.formInput}
-                value={company}
-                onChangeText={setCompany}
-              />
-            </View>
 
-            <View style={settingsStyles.formGroup}>
-              <Text style={settingsStyles.formLabel}>Job Title</Text>
-              <TextInput
-                style={settingsStyles.formInput}
-                value={jobTitle}
-                onChangeText={setJobTitle}
-              />
-            </View>
-
-            <TouchableOpacity style={settingsStyles.saveButton} onPress={handleSave}>
-              <Icon name="checkmark" size={14} color={colors.navy} />
-              <Text style={settingsStyles.saveButtonText}>Save Changes</Text>
-            </TouchableOpacity>
           </View>
         </View>
 
@@ -171,18 +249,35 @@ export default function SettingsScreen() {
               <Icon name="star" size={18} color={colors.amberDark} />
             </View>
             <View>
-              <Text style={settingsStyles.subTitle}>Free Plan</Text>
-              <Text style={settingsStyles.subSubtitle}>50 scans per month · Renews Mar 1</Text>
+              <Text style={settingsStyles.subTitle}>{profile?.accountType || 'Free'} Plan</Text>
+              <Text style={settingsStyles.subSubtitle}>
+                {profile?.remainingScans || 0} scans remaining
+              </Text>
             </View>
           </View>
 
           <View style={settingsStyles.progressLabels}>
-            <Text style={{ color: colors.muted, fontWeight: '600' }}>28 of 50 scans used</Text>
-            <Text style={settingsStyles.progressLabelStrong}>56%</Text>
+            <Text style={{ color: colors.muted, fontWeight: '600' }}>
+              {summary?.totalScansUsed || 0} of {profile?.remainingScans || 0} scans used
+            </Text>
+            <Text style={settingsStyles.progressLabelStrong}>
+              {profile?.remainingScans && summary?.totalScansUsed 
+                ? Math.round((summary.totalScansUsed / (summary.totalScansUsed + profile.remainingScans)) * 100) 
+                : 0}%
+            </Text>
           </View>
           
           <View style={settingsStyles.progressBar}>
-            <View style={settingsStyles.progressFill} />
+            <View 
+              style={[
+                settingsStyles.progressFill, 
+                { 
+                  width: profile?.remainingScans && summary?.totalScansUsed 
+                    ? `${Math.min((summary.totalScansUsed / (summary.totalScansUsed + profile.remainingScans)) * 100, 100)}%` 
+                    : '0%' 
+                }
+              ]} 
+            />
           </View>
 
           <TouchableOpacity style={settingsStyles.upgradeButton}>
@@ -191,85 +286,10 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Preferences */}
-        <Text style={settingsStyles.sectionLabel}>Preferences</Text>
-        <View style={settingsStyles.menuCard}>
-          <TouchableOpacity style={settingsStyles.menuItem}>
-            <View style={[settingsStyles.menuIconWrap, settingsStyles.menuIconAmber]}>
-              <Icon name="notifications-outline" size={15} color={colors.amberDark} />
-            </View>
-            <View style={settingsStyles.menuText}>
-              <Text style={settingsStyles.menuLabel}>Notifications</Text>
-              <Text style={settingsStyles.menuSub}>Scan alerts & reminders</Text>
-            </View>
-            <TouchableOpacity 
-              style={settingsStyles.toggle}
-              onPress={() => setNotifications(!notifications)}
-            >
-              <View style={[settingsStyles.toggleDot, notifications ? { right: 3 } : { left: 3 }]} />
-            </TouchableOpacity>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={settingsStyles.menuItem}>
-            <View style={[settingsStyles.menuIconWrap, settingsStyles.menuIconAmber]}>
-              <Icon name="moon-outline" size={15} color={colors.amberDark} />
-            </View>
-            <View style={settingsStyles.menuText}>
-              <Text style={settingsStyles.menuLabel}>Dark Mode</Text>
-              <Text style={settingsStyles.menuSub}>Switch appearance</Text>
-            </View>
-            <Icon name="chevron-forward" size={12} style={settingsStyles.chevron} />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={settingsStyles.menuItem}>
-            <View style={[settingsStyles.menuIconWrap, settingsStyles.menuIconAmber]}>
-              <Icon name="language-outline" size={15} color={colors.amberDark} />
-            </View>
-            <View style={settingsStyles.menuText}>
-              <Text style={settingsStyles.menuLabel}>Language</Text>
-              <Text style={settingsStyles.menuSub}>English (US)</Text>
-            </View>
-            <Icon name="chevron-forward" size={12} style={settingsStyles.chevron} />
-          </TouchableOpacity>
-        </View>
-
         {/* Account */}
         <Text style={settingsStyles.sectionLabel}>Account</Text>
         <View style={settingsStyles.menuCard}>
-          <TouchableOpacity style={settingsStyles.menuItem}>
-            <View style={[settingsStyles.menuIconWrap, settingsStyles.menuIconAmber]}>
-              <Icon name="shield-outline" size={15} color={colors.amberDark} />
-            </View>
-            <View style={settingsStyles.menuText}>
-              <Text style={settingsStyles.menuLabel}>Privacy & Security</Text>
-              <Text style={settingsStyles.menuSub}>Password, 2FA, data</Text>
-            </View>
-            <Icon name="chevron-forward" size={12} style={settingsStyles.chevron} />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={settingsStyles.menuItem}>
-            <View style={[settingsStyles.menuIconWrap, settingsStyles.menuIconAmber]}>
-              <Icon name="document-text-outline" size={15} color={colors.amberDark} />
-            </View>
-            <View style={settingsStyles.menuText}>
-              <Text style={settingsStyles.menuLabel}>Export All Data</Text>
-              <Text style={settingsStyles.menuSub}>Download contacts as CSV</Text>
-            </View>
-            <Icon name="chevron-forward" size={12} style={settingsStyles.chevron} />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={settingsStyles.menuItem}>
-            <View style={[settingsStyles.menuIconWrap, settingsStyles.menuIconAmber]}>
-              <Icon name="help-circle-outline" size={15} color={colors.amberDark} />
-            </View>
-            <View style={settingsStyles.menuText}>
-              <Text style={settingsStyles.menuLabel}>Help & Support</Text>
-              <Text style={settingsStyles.menuSub}>FAQs, contact us</Text>
-            </View>
-            <Icon name="chevron-forward" size={12} style={settingsStyles.chevron} />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={settingsStyles.menuItem}>
+          <TouchableOpacity style={settingsStyles.menuItem } onPress={handleLogout}>
             <View style={[settingsStyles.menuIconWrap, settingsStyles.menuIconRed]}>
               <Icon name="log-out-outline" size={15} color={colors.red} />
             </View>

@@ -25,7 +25,12 @@ export const settingsStyles = StyleSheet.create({
     borderRadius: 90,
     backgroundColor: colors.amber,
     opacity: 0.18,
-  },
+  },// Add these to your settingsStyles object
+saveButtonDisabled: {
+  opacity: 0.5,
+
+},
+
   heroTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',

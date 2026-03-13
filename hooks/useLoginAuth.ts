@@ -1,6 +1,14 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 
+import {
+  loginUser,
+  signUpUser,
+  forgotPasswordUser
+} from "@/services/auth";
+import { saveToken } from '@/utils/tokenStorage';
+
+
 interface AuthState {
   
   // Login
@@ -94,61 +102,122 @@ export const useAuth = (): AuthState => {
     setTimeout(() => setToast({ show: false, msg: '', type: 'info' }), 2800);
   };
 
-  const handleLogin = (): void => {
-    if (!validateEmail(loginEmail)) {
-      showToast('Please enter a valid email', 'error');
-      return;
-    }
-    if (!loginPass) {
-      showToast('Password is required', 'error');
-      return;
-    }
-    setLoading({ ...loading, login: true });
-    setTimeout(() => {
-      setLoading({ ...loading, login: false });
-      showToast('Welcome back!', 'success');
-      router.replace('/dashboard'); 
-    }, 1500);
-  };
+const handleLogin = async (): Promise<void> => {
+  if (!validateEmail(loginEmail)) {
+    showToast("Please enter a valid email", "error");
+    return;
+  }
 
-  const handleSignup = (): void => {
-    // UPDATED validation
-    if (!userName) {
-      showToast('User name is required', 'error');
-      return;
-    }
-    if (!phoneNumber) {
-      showToast('Phone number is required', 'error');
-      return;
-    }
-    if (!validateEmail(signupEmail)) {
-      showToast('Valid email is required', 'error');
-      return;
-    }
-    if (signupPass !== confirmPass) {
-      showToast('Passwords do not match', 'error');
-      return;
-    }
-    if (signupPass.length < 8) {
-      showToast('Password must be at least 8 characters', 'error');
-      return;
-    }
-    setLoading({ ...loading, signup: true });
-    setTimeout(() => {
-      setLoading({ ...loading, signup: false });
-      router.replace('/dashboard');  
-      showToast('Account created successfully! 🎉', 'success');
-    }, 1600);
-  };
+  if (!loginPass) {
+    showToast("Password is required", "error");
+    return;
+  }
 
-  const handleForgot = (): void => {
-    if (!validateEmail(forgotEmail)) {
-      showToast('Enter a valid email', 'error');
-      return;
+  try {
+    setLoading((prev) => ({ ...prev, login: true }));
+
+    const res = await loginUser({
+      email: loginEmail,
+      password: loginPass,
+    });
+
+    if (!res?.accessToken) {
+      throw new Error("Token not received");
     }
-    showToast('Reset link sent to your email! 📧', 'success');
-    setTimeout(() => setShowForgot(false), 800);
-  };
+
+   
+
+    showToast("Login successful!", "success");
+     await saveToken(res.accessToken);
+
+    console.log("Token saved:", res.accessToken);
+
+    router.replace("/dashboard");
+  } catch (error: any) {
+    showToast(
+      error?.response?.data?.message || error.message || "Login failed",
+      "error"
+    );
+  } finally {
+    setLoading((prev) => ({ ...prev, login: false }));
+  }
+};
+
+
+const handleSignup = async (): Promise<void> => {
+  if (!userName) {
+    showToast("User name is required", "error");
+    return;
+  }
+
+  if (!phoneNumber) {
+    showToast("Phone number is required", "error");
+    return;
+  }
+
+  if (!validateEmail(signupEmail)) {
+    showToast("Valid email is required", "error");
+    return;
+  }
+
+  if (signupPass !== confirmPass) {
+    showToast("Passwords do not match", "error");
+    return;
+  }
+
+  try {
+    setLoading((prev) => ({ ...prev, signup: true }));
+
+    await signUpUser({
+      email: signupEmail,
+      userName,
+      phoneNumber,
+      password: signupPass,
+    });
+
+    showToast("Verification code sent to your email 📧", "success");
+
+    // Navigate to verify screen
+    router.push({
+      pathname: "/verify-email",
+      params: { email: signupEmail },
+    });
+
+  } catch (error: any) {
+    showToast(
+      error?.response?.data?.message || "Signup failed",
+      "error"
+    );
+  } finally {
+    setLoading((prev) => ({ ...prev, signup: false }));
+  }
+};
+
+
+
+const handleForgot = async (): Promise<void> => {
+  if (!validateEmail(forgotEmail)) {
+    showToast("Enter a valid email", "error");
+    return;
+  }
+
+  try {
+    await forgotPasswordUser({
+      email: forgotEmail,
+    });
+
+    showToast("Reset email sent 📧", "success");
+
+    setTimeout(() => setShowForgot(false), 1000);
+
+  } catch (error: any) {
+    showToast(
+      error?.response?.data?.message || "Something went wrong",
+      "error"
+    );
+  }
+};
+
 
   const checkStrength = (val: string): void => {
     let score = 0;

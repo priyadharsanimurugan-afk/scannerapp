@@ -7,24 +7,24 @@
     "icon": "./assets/images/logo.png",
     "scheme": "Scannify",
     "userInterfaceStyle": "automatic",
-    
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
     },
     "android": {
+      "package": "com.priyachithra.BusinessCardScanner",
       "softwareKeyboardLayoutMode": "pan",
-      "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-       "permissions": [],
-
-        "foregroundImage": "./assets/images/logo.png",
-        "backgroundImage": "./assets/images/logo.png",
-        "monochromeImage": "./assets/images/logo.png"
-      },
+       "usesCleartextTraffic": true,
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.priyachithra.BusinessCardScanner"
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/logo.png",
+        "backgroundColor": "#0F1F3D"
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "output": "static",
@@ -32,8 +32,18 @@
     },
     "plugins": [
       "expo-router",
-       ["expo-camera", { "cameraPermission": "Allow camera to scan business cards" }],
-       ["expo-image-picker", { "photosPermission": "Allow photo access to scan cards" }],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow camera to scan business cards"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow photo access to scan cards"
+        }
+      ],
       [
         "expo-splash-screen",
         {
@@ -45,7 +55,8 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -54,18 +65,17 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "eee82738-85b5-470a-ad66-44d34d7ad689"
+        "projectId": "23d006ed-f099-4afc-9292-2f187e234ab7"
       }
     },
     "runtimeVersion": {
       "policy": "appVersion"
     },
-   "updates": {
-  "enabled": true,
-  "checkAutomatically": "ON_LOAD",
-  "fallbackToCacheTimeout": 0,
-  "url": "https://u.expo.dev/eee82738-85b5-470a-ad66-44d34d7ad689"
-}
-
+    "updates": {
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
+    "owner": "priya077"
   }
 }
