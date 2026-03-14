@@ -31,9 +31,9 @@ export const CameraStyles = StyleSheet.create({
   hint: { position: 'absolute', top: 100, alignSelf: 'center', backgroundColor: 'rgba(0,0,0,0.72)', flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20 },
   hintText: { color: '#fff', fontSize: 13, fontWeight: '600' },
   controls: { position: 'absolute', bottom: 36, width: '100%', flexDirection: 'row', justifyContent: 'center', gap: 14, paddingHorizontal: 20 },
-  cancelBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.error, paddingVertical: 13, paddingHorizontal: 22, borderRadius: 30, elevation: 4 },
+  cancelBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.error, paddingVertical: 13, paddingHorizontal: 15, borderRadius: 30, elevation: 4 },
   cancelText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  captureBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 13, paddingHorizontal: 28, borderRadius: 30, elevation: 6 },
+  captureBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 13, paddingHorizontal: 15, borderRadius: 30, elevation: 6 },
   captureText: { color: colors.navy, fontWeight: '700', fontSize: 15 },
 });
 

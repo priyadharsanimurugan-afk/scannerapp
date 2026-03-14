@@ -1,5 +1,5 @@
 // app/(tabs)/scan.tsx
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   Text, View, StyleSheet, Alert, FlatList,
   TouchableOpacity, ActivityIndicator, TextInput,
@@ -11,6 +11,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImageManipulator from 'expo-image-manipulator';
 import MlkitOcr from 'react-native-mlkit-ocr';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 
 import { useCards, ScannedCard, OCRData } from '@/components/store/useCardStore';
 import { useContact } from '@/hooks/useContact';
@@ -36,6 +37,16 @@ interface ExtendedScannedCard extends ScannedCard {
   hasBothSides?: boolean;
 }
 
+type CameraPhase = 'front' | 'back';
+
+// ─────────────────────────────────────────────────────
+// GLOBALLY UNIQUE ID GENERATOR — fixes duplicate key bug
+// ─────────────────────────────────────────────────────
+let _globalIdSeed = 0;
+function uid(prefix: string): string {
+  return `${prefix}-${Date.now()}-${++_globalIdSeed}`;
+}
+
 // ─────────────────────────────────────────────────────
 // API ERROR EXTRACTOR
 // ─────────────────────────────────────────────────────
@@ -58,61 +69,74 @@ function extractApiError(e: any): string {
 }
 
 // ─────────────────────────────────────────────────────
-// INTELLIGENT FIELD CLASSIFIER
+// INTELLIGENT CLASSIFIER — enhanced
 // ─────────────────────────────────────────────────────
-const EMAIL_RE = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/;
-const PHONE_RE = /^(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,5}\)?[-.\s]?\d{3,5}[-.\s]?\d{3,5}$/;
-const URL_RE = /^(https?:\/\/)?(www\.)?[a-zA-Z0-9\-]+\.[a-zA-Z]{2,}/;
-const PINCODE_RE = /^\d{6}$/;
-const NAME_RE = /^[A-Za-z\s.'\-]+$/;
+const EMAIL_RE    = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/;
+const PHONE_RE    = /^(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,5}\)?[-.\s]?\d{3,5}[-.\s]?\d{3,5}$/;
+const URL_RE      = /^(https?:\/\/)?(www\.)?[a-zA-Z0-9\-]+\.[a-zA-Z]{2,}/;
+const PINCODE_RE  = /^\d{6}$/;
+const NAME_RE     = /^[A-Za-z\s.'\-]+$/;
 
-const DESIG_KEYWORDS = ['manager', 'director', 'engineer', 'developer', 'designer',
-  'officer', 'president', 'head', 'lead', 'specialist', 'analyst', 'consultant',
-  'associate', 'founder', 'ceo', 'cto', 'cfo', 'coo', 'vp', 'executive',
-  'proprietor', 'partner', 'chairman', 'md', 'gm', 'sr.', 'jr.', 'senior', 'junior'];
-
-const COMPANY_INDICATORS = ['pvt', 'ltd', 'limited', 'llc', 'inc', 'corp', '& co',
-  'company', 'industries', 'enterprises', 'solutions', 'technologies',
-  'systems', 'group', 'associates', 'partners'];
-
-const SERVICE_KEYWORDS = ['services', 'solutions', 'consulting', 'training', 'development',
-  'design', 'manufacturing', 'trading', 'retail', 'wholesale', 'distribution',
-  'import', 'export', 'agency', 'consultancy', 'software', 'hardware'];
-
-const ADDR_KEYWORDS = ['road', 'rd', 'street', 'st', 'nagar', 'colony', 'sector', 'building',
-  'near', 'opp', 'phase', 'block', 'avenue', 'lane', 'bypass', 'highway', 'floor',
-  'plot', 'flat', 'door', 'house', 'office', 'shop', 'suite'];
+const DESIG_KEYWORDS      = ['manager','director','engineer','developer','designer','officer','president','head','lead','specialist','analyst','consultant','associate','founder','ceo','cto','cfo','coo','vp','executive','proprietor','partner','chairman','md','gm','sr.','jr.','senior','junior','incharge','in-charge','coordinator','supervisor','technician','accountant','executive director'];
+const COMPANY_INDICATORS  = ['pvt','ltd','limited','llc','inc','corp','& co','company','industries','enterprises','solutions','technologies','systems','group','associates','partners','holdings','international','global','ventures','foundation','trust'];
+const SERVICE_KEYWORDS    = ['services','solutions','consulting','training','development','design','manufacturing','trading','retail','wholesale','distribution','import','export','agency','consultancy','software','hardware','automation','fabrication','contractor','supplier','dealer','logistics'];
+const ADDR_KEYWORDS       = ['road','rd','street','st','nagar','colony','sector','building','bldg','near','opp','opposite','phase','block','avenue','lane','bypass','highway','floor','flr','plot','flat','door','house','office','shop','suite','main','cross','circle','junction','jn','market','bazaar','chowk','marg','salai','layout','extension','extn','village','taluk','district','dist','state','pin','p.o','po box','area','zone','industrial'];
+const STATE_LIST          = ['andhra','telangana','karnataka','tamil','kerala','maharashtra','gujarat','rajasthan','punjab','haryana','delhi','bihar','uttar','madhya','west bengal','odisha','assam','jharkhand','uttarakhand','himachal','goa','manipur','meghalaya','mizoram','nagaland','sikkim','tripura','arunachal','chhattisgarh','puducherry'];
+const CITY_LIST           = ['chennai','mumbai','delhi','bangalore','bengaluru','hyderabad','pune','kolkata','ahmedabad','surat','jaipur','lucknow','kanpur','nagpur','indore','thane','bhopal','visakhapatnam','vizag','patna','vadodara','ghaziabad','ludhiana','agra','nashik','faridabad','meerut','rajkot','coimbatore','madurai','tiruppur','tirunelveli','vellore','salem','erode','trichy','tiruchirappalli','kochi','calicut','kozhikode','mysuru','mysore','hubli','dharwad','belgaum','bellary','mangaluru','mangalore','ranchi','raipur','amritsar','chandigarh','bhubaneswar','cuttack','guwahati','vijayawada','guntur','nellore','warangal','srinagar','jammu','dehradun','haridwar','allahabad','prayagraj','varanasi','jodhpur','udaipur','kota','ajmer','sikar','dhanbad','jamshedpur','gaya','muzaffarpur','durgapur','asansol','siliguri','howrah','navi mumbai','thana'];
 
 export function smartClassify(value: string): string {
   const v = value.trim();
   const lower = v.toLowerCase();
   const scores: Record<string, number> = {
-    email: 0, phone: 0, website: 0, pincode: 0,
-    name: 0, designation: 0, company: 0, service: 0, address: 0, subcompany: 0, other: 0,
+    email:0, phone:0, website:0, pincode:0, name:0,
+    designation:0, company:0, service:0, address:0, subcompany:0, other:0,
   };
-  if (EMAIL_RE.test(v)) scores.email += 100;
-  if (PINCODE_RE.test(v)) scores.pincode += 90;
+
+  if (EMAIL_RE.test(v)) { scores.email += 100; return 'email'; }
+
   const digits = v.replace(/\D/g, '');
+  if (PINCODE_RE.test(v) && /^[1-9]/.test(v)) { scores.pincode += 95; }
   if (PHONE_RE.test(v) && digits.length >= 7 && digits.length <= 15) scores.phone += 90;
-  if (URL_RE.test(v) && !EMAIL_RE.test(v)) scores.website += 85;
+  if (URL_RE.test(v) && !EMAIL_RE.test(v) && !v.includes(' ')) scores.website += 85;
+
   const desigMatches = DESIG_KEYWORDS.filter(k => lower.includes(k)).length;
-  scores.designation += desigMatches * 30;
+  scores.designation += desigMatches * 35;
+  if (lower.match(/^(sr\.|jr\.|senior|junior|chief|deputy|asst\.?|assistant)\s/i)) scores.designation += 20;
+
   const companyMatches = COMPANY_INDICATORS.filter(k => lower.includes(k)).length;
-  scores.company += companyMatches * 28;
+  scores.company += companyMatches * 30;
+  if (/\b(pvt\.?\s*ltd\.?|llc|inc\.?|corp\.?)\b/i.test(v)) scores.company += 40;
+
   const serviceMatches = SERVICE_KEYWORDS.filter(k => lower.includes(k)).length;
-  scores.service += serviceMatches * 20;
-  const addrMatches = ADDR_KEYWORDS.filter(k => lower.split(/\s+/).includes(k)).length;
-  scores.address += addrMatches * 25;
-  if (digits.length === 6 && /[1-9]/.test(v[0])) scores.address += 15;
-  if (v.length > 40) scores.address += 10;
-  if (NAME_RE.test(v) && v.split(' ').length >= 2 && v.split(' ').length <= 4
-    && v.length < 30 && desigMatches === 0 && companyMatches === 0) {
-    scores.name += 40;
-    if (/^(mr|ms|mrs|dr|prof|er)[\s.]/i.test(v)) scores.name += 30;
-    if (v === v.toUpperCase() && v.split(' ').length === 1) scores.name -= 20;
+  scores.service += serviceMatches * 22;
+
+  const addrWordMatches = ADDR_KEYWORDS.filter(k => lower.split(/[\s,]+/).includes(k)).length;
+  scores.address += addrWordMatches * 28;
+  const addrPartialMatches = ADDR_KEYWORDS.filter(k => lower.includes(k)).length;
+  scores.address += addrPartialMatches * 8;
+  if (digits.length === 6 && /^[1-9]/.test(v)) scores.address += 20;
+  if (v.length > 35) scores.address += 12;
+  if (v.includes(',')) scores.address += 15;
+  if (STATE_LIST.some(s => lower.includes(s))) scores.address += 30;
+  if (CITY_LIST.some(c => lower.includes(c))) scores.address += 25;
+  if (/^\d+[\/\-]\d+/.test(v)) scores.address += 20;
+  if (/\b(no\.?|#)\s*\d+/i.test(v)) scores.address += 15;
+
+  if (
+    NAME_RE.test(v) &&
+    v.split(' ').length >= 2 &&
+    v.split(' ').length <= 5 &&
+    v.length < 35 &&
+    desigMatches === 0 &&
+    companyMatches === 0 &&
+    digits.length === 0
+  ) {
+    scores.name += 45;
+    if (/^(mr\.?|ms\.?|mrs\.?|dr\.?|prof\.?|er\.?|shri|smt|capt|col|lt)\s/i.test(v)) scores.name += 35;
+    if (v === v.toUpperCase() && v.split(' ').length === 1) scores.name -= 30;
   }
-  const maxScore = Math.max(...Object.values(scores));
-  if (maxScore < 10) scores.other += 5;
+
+  if (Math.max(...Object.values(scores)) < 10) scores.other += 5;
   return Object.entries(scores).sort((a, b) => b[1] - a[1])[0][0];
 }
 
@@ -127,105 +151,161 @@ function reClassifyFields(fields: FieldItem[]): FieldItem[] {
 }
 
 const sendWhatsAppMessage = async (card: ExtendedScannedCard, fields: FieldItem[]) => {
-  const get = (type: string, idx = 0) => fields.filter(f => f.type === type)[idx]?.value || '';
+  const get    = (type: string, idx = 0) => fields.filter(f => f.type === type)[idx]?.value || '';
+  const getAll = (type: string) => fields.filter(f => f.type === type).map(f => f.value).join(', ');
   const phone = get('phone').replace(/\D/g, '');
-  if (!phone) { Alert.alert("No Phone Number", "Cannot send WhatsApp message without a phone number."); return; }
-  const message =
-`Hi 👋
-
-This is Scanify App.
-
-Here is the scanned contact information:
-
-👤 Name: ${get('name')}
-🏢 Company: ${get('company')}
-💼 Designation: ${get('designation')}
-📧 Email: ${get('email')}
-🌐 Website: ${get('website')}
-📍 Address: ${get('address')}
-
-Saved via Scanify Card Scanner.`;
+  if (!phone) { Alert.alert('No Phone Number', 'Cannot send WhatsApp message without a phone number.'); return; }
+  const message = `Hi 👋\n\nThis is Scanify App.\n\nHere is the scanned contact information:\n\n👤 Name: ${get('name')}\n🏢 Company: ${get('company')}\n💼 Designation: ${get('designation')}\n📧 Email: ${get('email')}\n🌐 Website: ${get('website')}\n📍 Address: ${getAll('address')}\n\nSaved via Scanify Card Scanner.`;
   const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
-  try { await Linking.openURL(url); } catch { Alert.alert("WhatsApp not installed"); }
+  try { await Linking.openURL(url); } catch { Alert.alert('WhatsApp not installed'); }
 };
 
 // ─────────────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────────────
 const cleanLine = (l: string) => l.replace(/[|\\]/g, '').replace(/\s{2,}/g, ' ').trim();
-const normalizeAddress = (a: string) =>
-  a.replace(/,\s*,+/g, ',').replace(/\s{2,}/g, ' ').replace(/^[,\s]+|[,\s]+$/g, '').trim();
+
+function mergeAddressLines(lines: string[], pincodes: string[]): string[] {
+  const result: string[] = [];
+  let addrBuffer: string[] = [];
+
+  const isAddrLine = (l: string) => {
+    const lo = l.toLowerCase();
+    return (
+      ADDR_KEYWORDS.some(k => lo.split(/[\s,]+/).includes(k)) ||
+      ADDR_KEYWORDS.some(k => lo.includes(k)) ||
+      pincodes.some(p => l.includes(p)) ||
+      STATE_LIST.some(s => lo.includes(s)) ||
+      CITY_LIST.some(c => lo.includes(c)) ||
+      /^\d+[\/\-]\d+/.test(l) ||
+      /\b(no\.?|#)\s*\d+/i.test(l)
+    );
+  };
+
+  for (const line of lines) {
+    if (isAddrLine(line)) {
+      addrBuffer.push(line);
+    } else {
+      if (addrBuffer.length > 0) {
+        result.push(addrBuffer.join(', '));
+        addrBuffer = [];
+      }
+      result.push(line);
+    }
+  }
+  if (addrBuffer.length > 0) result.push(addrBuffer.join(', '));
+  return result;
+}
 
 const extractAllFields = (rawText: string): FieldItem[] => {
-  const lines = rawText.split('\n').map(cleanLine).filter(l => l.length > 2);
-  const fullText = lines.join(' ');
+  const rawLines = rawText.split('\n').map(cleanLine).filter(l => l.length > 1);
+  const fullText = rawLines.join(' ');
+
+  const pincodeRegex = /\b[1-9][0-9]{5}\b/g;
+  const pincodes = [...new Set([...fullText.matchAll(pincodeRegex)].map(m => m[0]))];
+
+  const lines = mergeAddressLines(rawLines, pincodes);
+
   const fields: FieldItem[] = [];
-  let idCounter = 0;
 
   const emailRegex = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
   const emails = [...new Set([...fullText.matchAll(emailRegex)].map(m => m[0].toLowerCase()))];
-  emails.forEach(email => fields.push({ id: `email-${idCounter++}`, type: 'email', value: email, order: fields.length }));
+  emails.forEach(email => fields.push({ id: uid('email'), type: 'email', value: email, order: fields.length }));
 
   const phoneRegex = /(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,5}\)?[-.\s]?\d{3,5}[-.\s]?\d{3,5}/g;
   const phones = [...new Set([...fullText.matchAll(phoneRegex)].map(m => m[0].trim()))];
   phones.forEach(phone => {
     const d = phone.replace(/\D/g, '');
-    if (d.length >= 7 && d.length <= 15) fields.push({ id: `phone-${idCounter++}`, type: 'phone', value: phone, order: fields.length });
+    if (d.length >= 7 && d.length <= 15 && !emails.some(e => e.includes(phone)))
+      fields.push({ id: uid('phone'), type: 'phone', value: phone, order: fields.length });
   });
 
   const urlRegex = /(https?:\/\/)?(www\.)?[a-zA-Z0-9\-]+\.[a-zA-Z]{2,}(?:\/[^\s,;)\]"']*)?/g;
   const urls = [...new Set([...fullText.matchAll(urlRegex)].map(m => m[0]))];
   urls.forEach(url => {
-    if (!emails.some(e => url.includes(e))) fields.push({ id: `web-${idCounter++}`, type: 'website', value: url, order: fields.length });
+    if (!emails.some(e => url.includes(e)) && !url.match(/^\d/) && url.length > 4)
+      fields.push({ id: uid('web'), type: 'website', value: url, order: fields.length });
   });
 
-  const pincodeRegex = /\b[1-9][0-9]{5}\b/g;
-  const pincodes = [...new Set([...fullText.matchAll(pincodeRegex)].map(m => m[0]))];
-  pincodes.forEach(pin => fields.push({ id: `pin-${idCounter++}`, type: 'pincode', value: pin, order: fields.length }));
+  pincodes.forEach(pin => fields.push({ id: uid('pin'), type: 'pincode', value: pin, order: fields.length }));
 
-  const nameIndicators = ['mr', 'ms', 'mrs', 'dr', 'prof', 'er'];
-  lines.forEach(line => {
-    if (line.length > 3 && line.length < 30 && /^[A-Za-z\s.'-]+$/.test(line) && !line.includes('@') && line.split(' ').length <= 3) {
-      const words = line.split(' ');
-      if (words.length >= 2 || nameIndicators.some(ind => line.toLowerCase().includes(ind)))
-        fields.push({ id: `name-${idCounter++}`, type: 'name', value: line.trim(), order: fields.length });
+  const alreadyExtracted = new Set<string>([
+    ...emails, ...phones, ...urls, ...pincodes,
+  ].map(v => v.toLowerCase()));
+
+  const isDuplicate = (v: string) => alreadyExtracted.has(v.toLowerCase());
+  const seenValues = new Set<string>();
+
+  for (const line of lines) {
+    if (line.length <= 1) continue;
+    const lower = line.toLowerCase();
+    const trimmed = line.trim();
+    if (isDuplicate(trimmed)) continue;
+    if (seenValues.has(trimmed.toLowerCase())) continue;
+
+    const addrScore = (
+      ADDR_KEYWORDS.filter(k => lower.split(/[\s,]+/).includes(k)).length * 28 +
+      ADDR_KEYWORDS.filter(k => lower.includes(k)).length * 8 +
+      (pincodes.some(p => line.includes(p)) ? 40 : 0) +
+      (STATE_LIST.some(s => lower.includes(s)) ? 30 : 0) +
+      (CITY_LIST.some(c => lower.includes(c)) ? 25 : 0) +
+      (trimmed.includes(',') ? 15 : 0) +
+      (/^\d+[\/\-]\d+/.test(trimmed) ? 20 : 0)
+    );
+
+    if (addrScore >= 28) {
+      const normalized = trimmed.replace(/,\s*,+/g, ',').replace(/\s{2,}/g, ' ').replace(/^[,\s]+|[,\s]+$/g, '').trim();
+      if (normalized.length > 2) {
+        fields.push({ id: uid('addr'), type: 'address', value: normalized, order: fields.length });
+        seenValues.add(trimmed.toLowerCase());
+        continue;
+      }
     }
-  });
 
-  lines.forEach(line => {
-    const lower = line.toLowerCase();
-    if (DESIG_KEYWORDS.some(k => lower.includes(k)) && line.length < 50)
-      fields.push({ id: `desig-${idCounter++}`, type: 'designation', value: line.trim(), order: fields.length });
-  });
+    if (DESIG_KEYWORDS.some(k => lower.includes(k)) && trimmed.length < 60 && !trimmed.match(/pvt|ltd/i)) {
+      fields.push({ id: uid('desig'), type: 'designation', value: trimmed, order: fields.length });
+      seenValues.add(trimmed.toLowerCase());
+      continue;
+    }
 
-  lines.forEach(line => {
-    const lower = line.toLowerCase();
-    if (COMPANY_INDICATORS.some(ind => lower.includes(ind)) && line.length < 60)
-      fields.push({ id: `company-${idCounter++}`, type: 'company', value: line.trim(), order: fields.length });
-  });
+    if (COMPANY_INDICATORS.some(ind => lower.includes(ind)) && trimmed.length < 80) {
+      fields.push({ id: uid('company'), type: 'company', value: trimmed, order: fields.length });
+      seenValues.add(trimmed.toLowerCase());
+      continue;
+    }
 
-  lines.forEach(line => {
-    const lower = line.toLowerCase();
-    if (SERVICE_KEYWORDS.some(k => lower.includes(k)) && line.length < 50)
-      fields.push({ id: `service-${idCounter++}`, type: 'service', value: line.trim(), order: fields.length });
-  });
+    if (SERVICE_KEYWORDS.some(k => lower.includes(k)) && trimmed.length < 60) {
+      fields.push({ id: uid('service'), type: 'service', value: trimmed, order: fields.length });
+      seenValues.add(trimmed.toLowerCase());
+      continue;
+    }
 
-  lines.forEach(line => {
-    const lower = line.toLowerCase();
-    if (ADDR_KEYWORDS.some(k => lower.includes(k)) || pincodes.some(p => line.includes(p)))
-      fields.push({ id: `addr-${idCounter++}`, type: 'address', value: normalizeAddress(line.trim()), order: fields.length });
-  });
+    const nameIndicators = ['mr','ms','mrs','dr','prof','er','shri','smt','capt','col'];
+    const wordCount = trimmed.split(/\s+/).length;
+    const digitCount = trimmed.replace(/\D/g, '').length;
+    if (
+      trimmed.length > 2 && trimmed.length < 40 &&
+      /^[A-Za-z\s.'\-]+$/.test(trimmed) &&
+      !trimmed.includes('@') &&
+      digitCount === 0 &&
+      (wordCount >= 2 || nameIndicators.some(ind => lower.startsWith(ind)))
+    ) {
+      fields.push({ id: uid('name'), type: 'name', value: trimmed, order: fields.length });
+      seenValues.add(trimmed.toLowerCase());
+      continue;
+    }
 
-  lines.forEach(line => {
-    if (line.length > 3 && line.length < 40 && !fields.some(f => f.value === line) && !/[^\w\s\-.,&@]/.test(line))
-      fields.push({ id: `other-${idCounter++}`, type: 'other', value: line.trim(), order: fields.length });
-  });
+    if (trimmed.length > 2 && trimmed.length < 60 && !/[^\w\s\-.,&@#\/]/.test(trimmed)) {
+      fields.push({ id: uid('other'), type: 'other', value: trimmed, order: fields.length });
+      seenValues.add(trimmed.toLowerCase());
+    }
+  }
 
-  const seen = new Set();
+  const seen = new Set<string>();
   const deduped = fields.filter(f => {
-    const lower = f.value.toLowerCase();
-    if (seen.has(lower)) return false;
-    seen.add(lower);
+    const k = f.value.toLowerCase().trim();
+    if (seen.has(k)) return false;
+    seen.add(k);
     return true;
   });
 
@@ -246,37 +326,29 @@ async function uriToBase64(uri: string): Promise<string> {
 }
 
 // ─────────────────────────────────────────────────────
+// HELPER — join ALL address fields into one string
+// ─────────────────────────────────────────────────────
+const buildFullAddress = (fields: FieldItem[]): string =>
+  fields
+    .filter(f => f.type === 'address')
+    .map(f => f.value.trim())
+    .filter(v => v.length > 0)
+    .join(', ');
+
+// ─────────────────────────────────────────────────────
 // FIELD TYPE META
 // ─────────────────────────────────────────────────────
 const FieldTypeColors: Record<string, string> = {
-  name: colors.amberDark,
-  designation: colors.lead,
-  company: colors.partner,
-  subcompany: '#7c3aed',
-  phone: colors.success,
-  email: colors.startup,
-  website: colors.enterprise,
-  address: '#64748b',
-  service: colors.vendor,
-  pincode: colors.muted,
-  other: '#888',
+  name: colors.amberDark, designation: colors.lead, company: colors.partner, subcompany: '#7c3aed',
+  phone: colors.success, email: colors.startup, website: colors.enterprise,
+  address: '#64748b', service: colors.vendor, pincode: colors.muted, other: '#888',
 };
-
 const FieldTypeIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
-  name: 'person-outline',
-  designation: 'briefcase-outline',
-  company: 'business-outline',
-  subcompany: 'git-branch-outline',
-  phone: 'call-outline',
-  email: 'mail-outline',
-  website: 'globe-outline',
-  address: 'map-outline',
-  service: 'construct-outline',
-  pincode: 'location-outline',
-  other: 'document-text-outline',
+  name: 'person-outline', designation: 'briefcase-outline', company: 'business-outline', subcompany: 'git-branch-outline',
+  phone: 'call-outline', email: 'mail-outline', website: 'globe-outline',
+  address: 'map-outline', service: 'construct-outline', pincode: 'location-outline', other: 'document-text-outline',
 };
-
-const ALL_FIELD_TYPES = ['name', 'designation', 'company', 'subcompany', 'phone', 'email', 'website', 'address', 'service', 'pincode', 'other'];
+const ALL_FIELD_TYPES = ['name','designation','company','subcompany','phone','email','website','address','service','pincode','other'];
 const fieldLabel = (type: string) => type === 'subcompany' ? 'Sub Company' : type.charAt(0).toUpperCase() + type.slice(1);
 
 // ─────────────────────────────────────────────────────
@@ -294,16 +366,16 @@ function TypePickerModal({ visible, currentType, onSelect, onClose }: {
           <ScrollView showsVerticalScrollIndicator={false}>
             {ALL_FIELD_TYPES.map(t => {
               const color = FieldTypeColors[t] || '#888';
-              const icon = FieldTypeIcons[t] || 'ellipse-outline';
-              const isSelected = t === currentType;
+              const icon  = FieldTypeIcons[t] || 'ellipse-outline';
+              const isSel = t === currentType;
               return (
-                <TouchableOpacity key={t} style={[S.typeRow, isSelected && { backgroundColor: color + '18' }]}
+                <TouchableOpacity key={t} style={[S.typeRow, isSel && { backgroundColor: color + '18' }]}
                   onPress={() => { onSelect(t); onClose(); }}>
                   <View style={[S.typeIcon, { backgroundColor: color + '20' }]}>
                     <Ionicons name={icon} size={16} color={color} />
                   </View>
-                  <Text style={[S.typeLabel, { color: isSelected ? color : colors.text }]}>{fieldLabel(t)}</Text>
-                  {isSelected && <Ionicons name="checkmark-circle" size={18} color={color} />}
+                  <Text style={[S.typeLabel, { color: isSel ? color : colors.text }]}>{fieldLabel(t)}</Text>
+                  {isSel && <Ionicons name="checkmark-circle" size={18} color={color} />}
                 </TouchableOpacity>
               );
             })}
@@ -326,7 +398,7 @@ function InlineFieldRow({ field, isEditMode, onUpdate, onDelete, onChangeType, o
 }) {
   const [showTypePicker, setShowTypePicker] = useState(false);
   const color = FieldTypeColors[field.type] || '#888';
-  const icon = FieldTypeIcons[field.type] || 'ellipse-outline';
+  const icon  = FieldTypeIcons[field.type] || 'ellipse-outline';
 
   if (isEditMode) {
     return (
@@ -345,6 +417,8 @@ function InlineFieldRow({ field, isEditMode, onUpdate, onDelete, onChangeType, o
             placeholderTextColor={colors.muted}
             autoCorrect={false}
             autoCapitalize="none"
+            multiline={field.type === 'address'}
+            numberOfLines={field.type === 'address' ? 2 : 1}
           />
           <TouchableOpacity style={S.delBtn} onPress={() => onDelete(field.id)}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
@@ -356,15 +430,20 @@ function InlineFieldRow({ field, isEditMode, onUpdate, onDelete, onChangeType, o
       </>
     );
   }
-
   return (
     <TouchableOpacity style={scanStyles.draggableItem} onPress={() => onCopy(field.value, field.type)} activeOpacity={0.65}>
       <View style={[scanStyles.fieldIcon, { backgroundColor: color + '15' }]}>
         <Ionicons name={icon} size={14} color={color} />
       </View>
       <View style={scanStyles.fieldContent}>
-        <Text style={[scanStyles.fieldType, { color }]}>{field.type === 'subcompany' ? 'SUB COMPANY' : field.type.toUpperCase()}</Text>
-        <Text style={[scanStyles.fieldValue, { color: colors.text }]} numberOfLines={2}>{field.value}</Text>
+        <Text style={[scanStyles.fieldType, { color }]}>
+          {field.type === 'subcompany' ? 'SUB COMPANY' : field.type.toUpperCase()}
+        </Text>
+        {/* Address renders full — no line truncation */}
+        <Text style={[scanStyles.fieldValue, { color: colors.text }]}
+          numberOfLines={field.type === 'address' ? 0 : 2}>
+          {field.value}
+        </Text>
       </View>
       <Ionicons name="copy-outline" size={14} color={colors.muted} />
     </TouchableOpacity>
@@ -375,18 +454,12 @@ function InlineFieldRow({ field, isEditMode, onUpdate, onDelete, onChangeType, o
 // ADD FIELD ROW
 // ─────────────────────────────────────────────────────
 function AddFieldRow({ onAdd }: { onAdd: (type: string, value: string) => void }) {
-  const [newType, setNewType] = useState('name');
-  const [newValue, setNewValue] = useState('');
+  const [newType, setNewType]               = useState('name');
+  const [newValue, setNewValue]             = useState('');
   const [showTypePicker, setShowTypePicker] = useState(false);
   const color = FieldTypeColors[newType] || '#888';
-  const icon = FieldTypeIcons[newType] || 'ellipse-outline';
-
-  const handleAdd = () => {
-    if (!newValue.trim()) return;
-    onAdd(newType, newValue.trim());
-    setNewValue('');
-  };
-
+  const icon  = FieldTypeIcons[newType] || 'ellipse-outline';
+  const handleAdd = () => { if (!newValue.trim()) return; onAdd(newType, newValue.trim()); setNewValue(''); };
   return (
     <>
       <View style={S.addRow}>
@@ -417,18 +490,41 @@ function AddFieldRow({ onAdd }: { onAdd: (type: string, value: string) => void }
 }
 
 // ─────────────────────────────────────────────────────
-// CAMERA SCANNER
+// CAMERA SCANNER — stays open, phase-aware, zero alerts
 // ─────────────────────────────────────────────────────
-function CameraScanner({ onCapture, onClose }: {
+function CameraScanner({
+  phase, onCapture, onClose, capturedFrontUri,
+}: {
+  phase: CameraPhase;
   onCapture: (uri: string) => void;
   onClose: () => void;
+  capturedFrontUri: string | null;
 }) {
   const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
-  const [capturing, setCapturing] = useState(false);
+  const [capturing, setCapturing]       = useState(false);
+  const [flashConfirm, setFlashConfirm] = useState(false);
+
+  const handleCapture = async () => {
+    if (capturing) return;
+    setCapturing(true);
+    try {
+      const photo = await cameraRef.current?.takePictureAsync({ quality: 0.95, skipProcessing: false });
+      if (photo?.uri) {
+        const processed = await ImageManipulator.manipulateAsync(
+          photo.uri, [{ resize: { width: 1400 } }],
+          { compress: 0.92, format: ImageManipulator.SaveFormat.JPEG }
+        );
+        setFlashConfirm(true);
+        setTimeout(() => setFlashConfirm(false), 600);
+        onCapture(processed.uri);
+      }
+    } catch { /* silent */ } finally {
+      setCapturing(false);
+    }
+  };
 
   if (!permission) return <ActivityIndicator style={{ flex: 1 }} color={colors.amber} />;
-
   if (!permission.granted) {
     return (
       <View style={[CameraStyles.center, { backgroundColor: colors.phoneBg }]}>
@@ -441,91 +537,137 @@ function CameraScanner({ onCapture, onClose }: {
     );
   }
 
-  const handleCapture = async () => {
-    if (capturing) return;
-    setCapturing(true);
-    try {
-      const photo = await cameraRef.current?.takePictureAsync({ quality: 0.95, skipProcessing: false });
-      if (photo?.uri) {
-        const processed = await ImageManipulator.manipulateAsync(
-          photo.uri,
-          [{ resize: { width: 1200 } }],
-          { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG }
-        );
-        onCapture(processed.uri);
-      }
-    } catch (e: any) {
-      Alert.alert('Capture Failed', e.message ?? 'Unknown error');
-    } finally {
-      setCapturing(false);
-    }
-  };
+  const isFront    = phase === 'front';
+  const frameColor = isFront ? colors.amber : '#22d3ee';
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" />
+
       <View style={CameraStyles.overlayTop} />
       <View style={CameraStyles.overlayBottom} />
       <View style={CameraStyles.overlayLeft} />
       <View style={CameraStyles.overlayRight} />
-      <View style={[CameraStyles.cardFrame, { borderColor: colors.amber }]} />
+      <View style={[CameraStyles.cardFrame, { borderColor: frameColor }]} />
+
+      {flashConfirm && (
+        <View style={CS.flashOverlay}>
+          <View style={CS.flashCheck}>
+            <Ionicons name="checkmark-circle" size={72} color="#fff" />
+            <Text style={CS.flashText}>{isFront ? 'Front captured!' : 'Back captured!'}</Text>
+          </View>
+        </View>
+      )}
+
+      <View style={CS.phaseBar}>
+        {phase === 'back' && capturedFrontUri && (
+          <Image source={{ uri: capturedFrontUri }} style={CS.frontThumb} contentFit="cover" />
+        )}
+        <View style={[CS.phaseBadge, { backgroundColor: frameColor }]}>
+          <Ionicons name={isFront ? 'arrow-forward-circle' : 'arrow-back-circle'} size={15}
+            color={isFront ? colors.navy : '#fff'} />
+          <Text style={[CS.phaseText, { color: isFront ? colors.navy : '#fff' }]}>
+            {isFront ? 'IMAGE 1 — FRONT' : 'IMAGE 2 — BACK'}
+          </Text>
+        </View>
+        {phase === 'back' && (
+          <View style={[CS.phaseBadge, { backgroundColor: '#16a34a', paddingHorizontal: 8 }]}>
+            <Ionicons name="checkmark-circle" size={12} color="#fff" />
+            <Text style={[CS.phaseText, { color: '#fff', fontSize: 10 }]}>Front ✓</Text>
+          </View>
+        )}
+      </View>
+
       <View style={CameraStyles.hint}>
         <Ionicons name="card-outline" size={15} color="#fff" style={{ marginRight: 6 }} />
-        <Text style={CameraStyles.hintText}>Align business card inside the frame</Text>
+        <Text style={CameraStyles.hintText}>
+          {isFront ? 'Align FRONT of card in frame' : 'Flip card — align BACK in frame'}
+        </Text>
       </View>
+
       <View style={CameraStyles.controls}>
         <TouchableOpacity style={CameraStyles.cancelBtn} onPress={onClose}>
           <Ionicons name="close" size={18} color="#fff" />
           <Text style={CameraStyles.cancelText}>Cancel</Text>
         </TouchableOpacity>
+
         <TouchableOpacity
-          style={[CameraStyles.captureBtn, { backgroundColor: colors.amber }]}
-          onPress={handleCapture}
-          disabled={capturing}
+          style={[CameraStyles.captureBtn, { backgroundColor: frameColor, opacity: capturing ? 0.7 : 1 }]}
+          onPress={handleCapture} disabled={capturing} activeOpacity={0.8}
         >
           {capturing
-            ? <ActivityIndicator size="small" color={colors.navy} />
-            : <><Ionicons name="camera" size={20} color={colors.navy} /><Text style={CameraStyles.captureText}>Capture</Text></>
+            ? <ActivityIndicator size="small" color={isFront ? colors.navy : '#fff'} />
+            : <>
+                <Ionicons name="camera" size={20} color={isFront ? colors.navy : '#fff'} />
+                <Text style={[CameraStyles.captureText, { color: isFront ? colors.navy : '#fff' }]}>
+                  {isFront ? 'Capture Front' : 'Capture Back'}
+                </Text>
+              </>
           }
         </TouchableOpacity>
+
+        {phase === 'back' && (
+          <TouchableOpacity
+            style={[CameraStyles.cancelBtn, { backgroundColor: 'rgba(255,255,255,0.18)' }]}
+            onPress={() => onCapture('__skip__')}
+          >
+            <Ionicons name="play-skip-forward" size={16} color="#fff" />
+            <Text style={CameraStyles.cancelText}>Skip Back</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
 }
+
+const CS = StyleSheet.create({
+  phaseBar: {
+    position: 'absolute', top: 52, left: 0, right: 0,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, paddingHorizontal: 20,
+  },
+  phaseBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 22,
+  },
+  phaseText: { fontSize: 12, fontWeight: '800', letterSpacing: 0.8 },
+  frontThumb: { width: 48, height: 30, borderRadius: 5, borderWidth: 2, borderColor: colors.amber },
+  flashOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center', justifyContent: 'center', zIndex: 99,
+  },
+  flashCheck: { alignItems: 'center', gap: 10 },
+  flashText: { color: '#fff', fontSize: 18, fontWeight: '800', letterSpacing: 0.5 },
+});
 
 // ─────────────────────────────────────────────────────
 // STYLES
 // ─────────────────────────────────────────────────────
 const S = StyleSheet.create({
   editRow: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#fff', borderRadius: 10,
-    paddingHorizontal: 10, paddingVertical: 8,
-    marginBottom: 6, borderWidth: 1.5, borderColor: colors.amber + '55',
-    gap: 6, elevation: 1,
+    flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#fff', borderRadius: 10,
+    paddingHorizontal: 10, paddingVertical: 8, marginBottom: 6, borderWidth: 1.5,
+    borderColor: colors.amber + '55', gap: 6, elevation: 1,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2,
   },
   typeBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 3,
-    paddingHorizontal: 6, paddingVertical: 5,
+    flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6, paddingVertical: 5,
     borderRadius: 7, borderWidth: 1, width: 82, flexShrink: 0,
   },
   typeBadgeText: { fontSize: 9, fontWeight: '700', letterSpacing: 0.2, flex: 1 },
   editInput: {
-    flex: 1, fontSize: 13, color: colors.text,
-    paddingVertical: 5, paddingHorizontal: 8,
+    flex: 1, fontSize: 13, color: colors.text, paddingVertical: 5, paddingHorizontal: 8,
     backgroundColor: '#f8fafc', borderRadius: 7, minHeight: 34,
   },
-  delBtn: { width: 26, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  delBtn: { width: 26, alignItems: 'center', justifyContent: 'center', flexShrink: 0, paddingTop: 6 },
   addRow: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#fff', borderRadius: 10,
-    paddingHorizontal: 10, paddingVertical: 8,
-    marginTop: 6, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.amber, gap: 6,
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 10,
+    paddingHorizontal: 10, paddingVertical: 8, marginTop: 6, borderWidth: 1.5,
+    borderStyle: 'dashed', borderColor: colors.amber, gap: 6,
   },
   addInput: {
-    flex: 1, fontSize: 13, color: colors.text,
-    paddingVertical: 5, paddingHorizontal: 8,
+    flex: 1, fontSize: 13, color: colors.text, paddingVertical: 5, paddingHorizontal: 8,
     backgroundColor: '#f8fafc', borderRadius: 7, minHeight: 34,
   },
   addBtn: { width: 36, height: 36, borderRadius: 9, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
@@ -541,27 +683,24 @@ const S = StyleSheet.create({
   typeLabel: { flex: 1, fontSize: 14, fontWeight: '600' },
   actionBar: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 10, paddingVertical: 8,
-    backgroundColor: colors.navy, gap: 6,
+    paddingHorizontal: 10, paddingVertical: 8, backgroundColor: colors.navy, gap: 6,
   },
   actionBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 5, paddingVertical: 9, borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.14)', minHeight: 38,
+    gap: 5, paddingVertical: 9, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.14)', minHeight: 38,
   },
   actionBtnText: { fontSize: 12, fontWeight: '700', color: '#fff' },
   reclassifyBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: colors.amber + '15', borderRadius: 9,
-    paddingHorizontal: 10, paddingVertical: 9,
-    marginBottom: 10, borderWidth: 1, borderColor: colors.amber + '35',
+    flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.amber + '15',
+    borderRadius: 9, paddingHorizontal: 10, paddingVertical: 9, marginBottom: 10,
+    borderWidth: 1, borderColor: colors.amber + '35',
   },
   reclassifyText: { fontSize: 11, color: colors.amberDark, flex: 1, lineHeight: 15 },
   stickyBar: { flexDirection: 'row', gap: 8, marginTop: 14, marginBottom: 2 },
   stickyCancel: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 6, paddingVertical: 13, borderRadius: 11,
-    backgroundColor: '#fee2e2', borderWidth: 1, borderColor: '#fca5a5',
+    gap: 6, paddingVertical: 13, borderRadius: 11, backgroundColor: '#fee2e2',
+    borderWidth: 1, borderColor: '#fca5a5',
   },
   stickyCancelText: { fontSize: 13, fontWeight: '700', color: '#dc2626' },
   stickySave: {
@@ -569,38 +708,35 @@ const S = StyleSheet.create({
     gap: 6, paddingVertical: 13, borderRadius: 11, backgroundColor: colors.amber,
   },
   stickySaveText: { fontSize: 13, fontWeight: '700', color: colors.navy },
-  scanBtnWrap: { margin: 16, borderRadius: 16, overflow: 'hidden' },
-  scanBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 10, paddingVertical: 18, borderRadius: 16, backgroundColor: colors.amber,
-  },
-  scanBtnText: { fontSize: 16, fontWeight: '800', color: colors.navy, letterSpacing: 0.4 },
-  // ── Dual image styles ──
   dualImageWrap: { flexDirection: 'row', height: 160, backgroundColor: '#000', position: 'relative' },
   dualImageHalf: { flex: 1, position: 'relative', overflow: 'hidden' },
   dualImage: { width: '100%', height: '100%' },
   dualDivider: { width: 2, backgroundColor: colors.amber },
   imageSideLabel: {
-    position: 'absolute', bottom: 6, left: 6,
-    flexDirection: 'row', alignItems: 'center', gap: 3,
-    backgroundColor: colors.amber + 'cc', borderRadius: 5,
-    paddingHorizontal: 6, paddingVertical: 3,
+    position: 'absolute', bottom: 6, left: 6, flexDirection: 'row', alignItems: 'center',
+    gap: 3, backgroundColor: colors.amber + 'cc', borderRadius: 5, paddingHorizontal: 6, paddingVertical: 3,
   },
   imageSideLabelText: { fontSize: 9, fontWeight: '800', color: '#fff', letterSpacing: 0.5 },
   dualBadge: {
     position: 'absolute', top: 8, left: '50%', transform: [{ translateX: -44 }],
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: colors.amber, borderRadius: 10,
-    paddingHorizontal: 8, paddingVertical: 3,
+    flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.amber,
+    borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3,
   },
   dualBadgeText: { fontSize: 10, fontWeight: '700', color: colors.navy },
   dualInfoBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: colors.amber + '15', borderRadius: 8,
-    paddingHorizontal: 10, paddingVertical: 8, marginBottom: 10,
+    flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.amber + '15',
+    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 10,
     borderWidth: 1, borderColor: colors.amber + '40',
   },
   dualInfoText: { fontSize: 11, color: colors.amberDark, flex: 1, fontWeight: '600' },
+  nextCardBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, paddingVertical: 14, borderRadius: 12, backgroundColor: colors.navy, marginTop: 10,
+  },
+  nextCardBtnText: { fontSize: 14, fontWeight: '700', color: '#fff' },
+  processingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 20, backgroundColor: colors.phoneBg },
+  processingText: { color: colors.text, fontSize: 17, fontWeight: '700' },
+  processingSubText: { color: colors.muted, fontSize: 13 },
 });
 
 // ─────────────────────────────────────────────────────
@@ -608,30 +744,54 @@ const S = StyleSheet.create({
 // ─────────────────────────────────────────────────────
 export default function ScanScreen() {
   const { cards, addCard, deleteCard, updateCard } = useCards();
-  const { addContact, loading: savingContact } = useContact();
-  const { setMenuVisible } = useMenuVisibility(); // ← controls floating button visibility
+  const { addContact, loading: savingContact }     = useContact();
+  const { setMenuVisible }                         = useMenuVisibility();
 
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isSavingEdit, setIsSavingEdit] = useState(false);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [isProcessing,  setIsProcessing]  = useState(false);
+  const [isSavingEdit,  setIsSavingEdit]  = useState(false);
+  const [expandedId,    setExpandedId]    = useState<string | null>(null);
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
-  const [localFields, setLocalFields] = useState<FieldItem[]>([]);
-  const [showCamera, setShowCamera] = useState(false);
+  const [localFields,   setLocalFields]   = useState<FieldItem[]>([]);
+
+  const [showCamera,      setShowCamera]      = useState(true);
+  const [cameraPhase,     setCameraPhase]     = useState<CameraPhase>('front');
   const [pendingFrontUri, setPendingFrontUri] = useState<string | null>(null);
 
-  // ── Open camera: hide floating button ──
-  const openCamera = useCallback(() => {
-    setMenuVisible(false);
-    setShowCamera(true);
-  }, [setMenuVisible]);
+  useEffect(() => { setMenuVisible(!showCamera); }, [showCamera, setMenuVisible]);
 
-  // ── Close camera: restore floating button ──
+  useFocusEffect(
+    useCallback(() => {
+      setPendingFrontUri(null);
+      setCameraPhase('front');
+      setExpandedId(null);
+      setEditingCardId(null);
+      setLocalFields([]);
+      setShowCamera(true);
+      return () => { setShowCamera(false); };
+    }, [])
+  );
+
+  const resetAndOpenCamera = useCallback(() => {
+    setPendingFrontUri(null);
+    setCameraPhase('front');
+    setExpandedId(null);
+    setEditingCardId(null);
+    setLocalFields([]);
+    setShowCamera(true);
+  }, []);
+
+  const openCameraForNextCard = useCallback(() => {
+    setPendingFrontUri(null);
+    setCameraPhase('front');
+    setShowCamera(true);
+  }, []);
+
   const closeCamera = useCallback(() => {
     setShowCamera(false);
-    setMenuVisible(true);
-  }, [setMenuVisible]);
+    setPendingFrontUri(null);
+    setCameraPhase('front');
+  }, []);
 
-  // ── OCR ──
   const runOCR = async (uri: string): Promise<string> => {
     try {
       const result = await MlkitOcr.detectFromUri(uri);
@@ -645,15 +805,18 @@ export default function ScanScreen() {
     } catch { return ''; }
   };
 
-  // ── Build & store a card from one or two URIs ──
   const buildAndStoreCard = useCallback(async (frontUri: string, backUri?: string) => {
     setIsProcessing(true);
+    setShowCamera(false);
     try {
       const frontText = await runOCR(frontUri);
       const backText  = backUri ? await runOCR(backUri) : '';
 
       if (!frontText.trim() && !backText.trim()) {
-        Alert.alert('No Text Detected', 'Could not read text from the image. Try again with better lighting.');
+        Alert.alert('No Text Detected', 'Could not read text. Try again with better lighting.', [
+          { text: 'Retry', onPress: openCameraForNextCard },
+          { text: 'Cancel', style: 'cancel' },
+        ]);
         return;
       }
 
@@ -661,13 +824,15 @@ export default function ScanScreen() {
       let fullText: string;
 
       if (backUri && backText.trim()) {
-        // Merge front + back, deduplicate
         const frontFields = extractAllFields(frontText);
         const backFields  = extractAllFields(backText);
-        const seen = new Set(frontFields.map(f => f.value.toLowerCase()));
+        const seen = new Set(frontFields.map(f => f.value.toLowerCase().trim()));
         const merged = [...frontFields];
         backFields.forEach(f => {
-          if (!seen.has(f.value.toLowerCase())) { merged.push(f); seen.add(f.value.toLowerCase()); }
+          if (!seen.has(f.value.toLowerCase().trim())) {
+            merged.push(f);
+            seen.add(f.value.toLowerCase().trim());
+          }
         });
         merged.forEach((f, i) => { f.order = i; });
         fields   = merged;
@@ -677,13 +842,30 @@ export default function ScanScreen() {
         fullText = frontText;
       }
 
+      // ── Post-process: collapse ALL address fields into one single field ──
+      const addrFields    = fields.filter(f => f.type === 'address');
+      const nonAddrFields = fields.filter(f => f.type !== 'address');
+      if (addrFields.length > 0) {
+        const mergedAddrValue = addrFields
+          .map(f => f.value.trim())
+          .filter(v => v.length > 0)
+          .join(', ');
+        const singleAddrField: FieldItem = {
+          id:    uid('addr-merged'),
+          type:  'address',
+          value: mergedAddrValue,
+          order: 0,
+        };
+        fields = [singleAddrField, ...nonAddrFields];
+        fields.forEach((f, i) => { f.order = i; });
+      }
+
       const card: ExtendedScannedCard = {
-        id: Date.now().toString(36) + Math.random().toString(36).slice(2),
+        id: uid('card'),
         uri: frontUri,
         ...(backUri ? { backUri, hasBothSides: true } : {}),
         data: { fullText } as OCRData,
-        fields,
-        tags: [],
+        fields, tags: [],
         createdAt: new Date().toISOString(),
         exported: false,
       };
@@ -697,44 +879,21 @@ export default function ScanScreen() {
     } finally {
       setIsProcessing(false);
     }
-  }, [addCard]);
+  }, [addCard, openCameraForNextCard]);
 
-  // ── Camera captured ──
-  // Closes camera (restores menu), then asks about back side on first capture.
   const handleCaptured = useCallback(async (uri: string) => {
-    // Always close camera + restore floating button first
-    setShowCamera(false);
-    setMenuVisible(true);
-
-    if (pendingFrontUri) {
-      // BACK side — merge with stored front
-      const front = pendingFrontUri;
-      setPendingFrontUri(null);
-      await buildAndStoreCard(front, uri);
+    if (cameraPhase === 'front') {
+      setPendingFrontUri(uri);
+      setCameraPhase('back');
     } else {
-      // FRONT side — ask if there is a back
-      Alert.alert(
-        'Front Side Captured',
-        'Does this card have a back side to scan?',
-        [
-          {
-            text: 'No, Done',
-            style: 'default',
-            onPress: () => buildAndStoreCard(uri),
-          },
-          {
-            text: 'Yes, Scan Back',
-            onPress: () => {
-              setPendingFrontUri(uri);
-              openCamera(); // hides menu again for back-side scan
-            },
-          },
-        ]
-      );
+      const front = pendingFrontUri!;
+      const back  = uri === '__skip__' ? undefined : uri;
+      setPendingFrontUri(null);
+      setCameraPhase('front');
+      await buildAndStoreCard(front, back);
     }
-  }, [pendingFrontUri, buildAndStoreCard, openCamera, setMenuVisible]);
+  }, [cameraPhase, pendingFrontUri, buildAndStoreCard]);
 
-  // ── INLINE EDIT ──
   const startEditing = useCallback((card: ExtendedScannedCard) => {
     setLocalFields((card.fields || []).map(f => ({ ...f })));
     setEditingCardId(card.id);
@@ -746,65 +905,73 @@ export default function ScanScreen() {
     setLocalFields([]);
   }, []);
 
+  // ── Show 3-button save alert: WhatsApp | Next Card | View Contacts ──
+  const showSaveAlert = useCallback((card: ExtendedScannedCard, fields: FieldItem[]) => {
+    Alert.alert(
+      'Contact Saved ✅',
+      'What would you like to do next?',
+      [
+        {
+          text: 'Send WhatsApp',
+          onPress: () => {
+            sendWhatsAppMessage(card, fields);
+            resetAndOpenCamera();
+          },
+        },
+        {
+          text: 'Next Card',
+          onPress: () => resetAndOpenCamera(),
+        },
+        {
+          text: 'View Contacts',
+          onPress: () => {
+            setShowCamera(false);
+            router.replace('/(tabs)/contacts');
+          },
+        },
+      ]
+    );
+  }, [resetAndOpenCamera]);
+
   const saveEditing = useCallback(async (cardId: string) => {
     const card = (cards as ExtendedScannedCard[]).find(c => c.id === cardId);
     if (!card) return;
 
     const reordered = localFields.map((f, i) => ({ ...f, order: i }));
-    const updatedCard = { ...card, fields: reordered } as unknown as ScannedCard;
-    updateCard(cardId, updatedCard);
-
+    updateCard(cardId, { ...card, fields: reordered } as unknown as ScannedCard);
     setIsSavingEdit(true);
+
     try {
       const get = (type: string, idx = 0) => reordered.filter(f => f.type === type)[idx]?.value || '';
+
+      // ── Comma-join ALL address fields for the API ──
+      const fullAddress = buildFullAddress(reordered);
+
       const frontImageAsString = await uriToBase64(card.uri);
       const backImageAsString  = card.hasBothSides && card.backUri ? await uriToBase64(card.backUri) : '';
 
       await addContact({
-        companyName:        get('company'),
-        subCompanyName:     get('subcompany'),
-        branchName:         '',
-        personName:         get('name'),
-        designation:        get('designation'),
-        phoneNumber1:       get('phone', 0),
-        phoneNumber2:       get('phone', 1),
-        phoneNumber3:       get('phone', 2),
-        email1:             get('email', 0),
-        email2:             get('email', 1),
-        address:            get('address'),
-        servicesCsv:        reordered.filter(f => f.type === 'service').map(f => f.value).join(', '),
-        website1:           get('website', 0),
-        website2:           get('website', 1),
-        rawExtractedText:   (card.data as any)?.fullText || '',
-        frontImageAsString,
-        frontImageMimeType: 'image/jpeg',
-        backImageAsString,
-        backImageMimeType:  'image/jpeg',
+        companyName:      get('company'),
+        subCompanyName:   get('subcompany'),
+        branchName:       '',
+        personName:       get('name'),
+        designation:      get('designation'),
+        phoneNumber1:     get('phone', 0),
+        phoneNumber2:     get('phone', 1),
+        phoneNumber3:     get('phone', 2),
+        email1:           get('email', 0),
+        email2:           get('email', 1),
+        address:          fullAddress,           // ← ALL addresses comma-joined
+        servicesCsv:      reordered.filter(f => f.type === 'service').map(f => f.value).join(', '),
+        website1:         get('website', 0),
+        website2:         get('website', 1),
+        rawExtractedText: (card.data as any)?.fullText || '',
+        frontImageAsString, frontImageMimeType: 'image/jpeg',
+        backImageAsString,  backImageMimeType:  'image/jpeg',
       });
 
-     Alert.alert(
-  'Contact Saved ✅',
-  'Do you want to send this contact info via WhatsApp?',
-  [
-    {
-      text: 'No',
-      style: 'cancel',
-      onPress: () => {
-        deleteCard(card.id);   // clear card
-        router.replace('/(tabs)/contacts');
-      },
-    },
-    {
-      text: 'Send WhatsApp',
-      onPress: () => {
-        sendWhatsAppMessage(card, reordered);
-        deleteCard(card.id);   // clear card
-        router.replace('/(tabs)/contacts');
-      },
-    },
-  ]
-);
-
+      deleteCard(card.id);
+      showSaveAlert(card, reordered);           // ← 3-button alert
     } catch (e: any) {
       Alert.alert('Save Failed', extractApiError(e));
     } finally {
@@ -812,12 +979,50 @@ export default function ScanScreen() {
       setEditingCardId(null);
       setLocalFields([]);
     }
-  }, [cards, localFields, updateCard, addContact]);
+  }, [cards, localFields, updateCard, addContact, deleteCard, showSaveAlert]);
 
-  const updateLocalField     = useCallback((id: string, value: string)   => setLocalFields(prev => prev.map(f => f.id === id ? { ...f, value } : f)), []);
-  const deleteLocalField     = useCallback((id: string)                   => setLocalFields(prev => prev.filter(f => f.id !== id)), []);
-  const changeLocalFieldType = useCallback((id: string, newType: string) => setLocalFields(prev => prev.map(f => f.id === id ? { ...f, type: newType } : f)), []);
-  const addLocalField        = useCallback((type: string, value: string) => setLocalFields(prev => [...prev, { id: `${type}-${Date.now()}`, type, value, order: prev.length }]), []);
+  const handleSaveContact = async (card: ExtendedScannedCard) => {
+    const fields = card.fields || [];
+    const get    = (type: string, idx = 0) => fields.filter(f => f.type === type)[idx]?.value || '';
+
+    // ── Comma-join ALL address fields for the API ──
+    const fullAddress = buildFullAddress(fields);
+
+    try {
+      const frontImageAsString = await uriToBase64(card.uri);
+      const backImageAsString  = card.hasBothSides && card.backUri ? await uriToBase64(card.backUri) : '';
+
+      await addContact({
+        companyName:      get('company'),
+        subCompanyName:   get('subcompany'),
+        branchName:       '',
+        personName:       get('name'),
+        designation:      get('designation'),
+        phoneNumber1:     get('phone', 0),
+        phoneNumber2:     get('phone', 1),
+        phoneNumber3:     get('phone', 2),
+        email1:           get('email', 0),
+        email2:           get('email', 1),
+        address:          fullAddress,           // ← ALL addresses comma-joined
+        servicesCsv:      fields.filter(f => f.type === 'service').map(f => f.value).join(', '),
+        website1:         get('website', 0),
+        website2:         get('website', 1),
+        rawExtractedText: (card.data as any)?.fullText || '',
+        frontImageAsString, frontImageMimeType: 'image/jpeg',
+        backImageAsString,  backImageMimeType:  'image/jpeg',
+      });
+
+      deleteCard(card.id);
+      showSaveAlert(card, fields);              // ← 3-button alert
+    } catch (e: any) {
+      Alert.alert('Save Failed', extractApiError(e));
+    }
+  };
+
+  const updateLocalField     = useCallback((id: string, value: string) => setLocalFields(p => p.map(f => f.id === id ? { ...f, value } : f)), []);
+  const deleteLocalField     = useCallback((id: string) => setLocalFields(p => p.filter(f => f.id !== id)), []);
+  const changeLocalFieldType = useCallback((id: string, newType: string) => setLocalFields(p => p.map(f => f.id === id ? { ...f, type: newType } : f)), []);
+  const addLocalField        = useCallback((type: string, value: string) => setLocalFields(p => [...p, { id: uid(type), type, value, order: p.length }]), []);
 
   const handleSmartReclassify = useCallback(() => {
     const reclassified = reClassifyFields(localFields);
@@ -826,70 +1031,13 @@ export default function ScanScreen() {
     const card = (cards as ExtendedScannedCard[]).find(c => c.id === editingCardId);
     Alert.alert(
       changedCount > 0 ? `Re-classified ✨ (${changedCount} fixed)` : 'All Good!',
-      changedCount > 0
-        ? `${changedCount} field${changedCount > 1 ? 's were' : ' was'} auto-fixed.`
-        : 'All field types look correct.',
+      changedCount > 0 ? `${changedCount} field${changedCount > 1 ? 's were' : ' was'} auto-fixed.` : 'All field types look correct.',
       [
         { text: 'OK', style: 'cancel' },
         ...(card ? [{ text: 'Send WhatsApp', onPress: () => sendWhatsAppMessage(card, reclassified) }] : []),
       ]
     );
   }, [localFields, cards, editingCardId]);
-
-  const handleSaveContact = async (card: ExtendedScannedCard) => {
-    const fields = card.fields || [];
-    const get = (type: string, idx = 0) => fields.filter(f => f.type === type)[idx]?.value || '';
-    try {
-      const frontImageAsString = await uriToBase64(card.uri);
-      const backImageAsString  = card.hasBothSides && card.backUri ? await uriToBase64(card.backUri) : '';
-      await addContact({
-        companyName:        get('company'),
-        subCompanyName:     get('subcompany'),
-        branchName:         '',
-        personName:         get('name'),
-        designation:        get('designation'),
-        phoneNumber1:       get('phone', 0),
-        phoneNumber2:       get('phone', 1),
-        phoneNumber3:       get('phone', 2),
-        email1:             get('email', 0),
-        email2:             get('email', 1),
-        address:            get('address'),
-        servicesCsv:        fields.filter(f => f.type === 'service').map(f => f.value).join(', '),
-        website1:           get('website', 0),
-        website2:           get('website', 1),
-        rawExtractedText:   (card.data as any)?.fullText || '',
-        frontImageAsString,
-        frontImageMimeType: 'image/jpeg',
-        backImageAsString,
-        backImageMimeType:  'image/jpeg',
-      });
-     Alert.alert(
-  'Contact Saved ✅',
-  'Contact saved successfully. Do you want to send this contact via WhatsApp?',
-  [
-    {
-      text: 'No',
-      style: 'cancel',
-      onPress: () => {
-        deleteCard(card.id);   // remove scanned card
-        router.replace('/(tabs)/contacts');
-      }
-    },
-    {
-      text: 'Send WhatsApp',
-      onPress: () => {
-        sendWhatsAppMessage(card, fields);  // send message
-        deleteCard(card.id);                // remove scanned card
-        router.replace('/(tabs)/contacts');
-      }
-    }
-  ]
-);
-
-    } catch (e: any) {
-      Alert.alert('Save Failed', extractApiError(e));
-    }
-  };
 
   const copyAll = async (card: ExtendedScannedCard) => {
     const text = (card.fields || []).map(f => `${f.type.toUpperCase()}: ${f.value}`).join('\n');
@@ -902,10 +1050,9 @@ export default function ScanScreen() {
     Alert.alert('Copied', `${type} copied`);
   };
 
-  // ── Render card ──
   const renderCard = ({ item }: { item: ExtendedScannedCard }) => {
-    const isExpanded = expandedId === item.id;
-    const isEditing  = editingCardId === item.id;
+    const isExpanded    = expandedId === item.id;
+    const isEditing     = editingCardId === item.id;
     const displayFields = isEditing
       ? [...localFields].sort((a, b) => a.order - b.order)
       : (item.fields || []).sort((a, b) => a.order - b.order);
@@ -913,7 +1060,6 @@ export default function ScanScreen() {
 
     return (
       <View style={[scanStyles.card, { backgroundColor: colors.white }]}>
-        {/* Image — single or dual side */}
         {item.hasBothSides && item.backUri ? (
           <View style={S.dualImageWrap}>
             <View style={S.dualImageHalf}>
@@ -940,7 +1086,6 @@ export default function ScanScreen() {
           <Image source={{ uri: item.uri }} style={scanStyles.cardImage} contentFit="cover" />
         )}
 
-        {/* Delete */}
         <TouchableOpacity style={scanStyles.deleteBtn}
           onPress={() => Alert.alert('Delete Card', 'Remove this card?', [
             { text: 'Cancel', style: 'cancel' },
@@ -949,7 +1094,6 @@ export default function ScanScreen() {
           <Ionicons name="trash-outline" size={16} color={colors.white} />
         </TouchableOpacity>
 
-        {/* Action bar */}
         <View style={S.actionBar}>
           <TouchableOpacity style={S.actionBtn} onPress={() => copyAll(item)}>
             <Ionicons name="copy-outline" size={13} color="#fff" />
@@ -958,29 +1102,23 @@ export default function ScanScreen() {
 
           {isEditing ? (
             <>
-              <TouchableOpacity style={[S.actionBtn, { backgroundColor: '#ef4444cc' }]}
-                onPress={cancelEditing} disabled={isSavingEdit}>
+              <TouchableOpacity style={[S.actionBtn, { backgroundColor: '#ef4444cc' }]} onPress={cancelEditing} disabled={isSavingEdit}>
                 <Ionicons name="close" size={13} color="#fff" />
                 <Text style={S.actionBtnText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[S.actionBtn, { backgroundColor: colors.amber, flex: 1.5 }]}
-                onPress={() => saveEditing(item.id)} disabled={isSavingEdit}>
+              <TouchableOpacity style={[S.actionBtn, { backgroundColor: colors.amber, flex: 1.5 }]} onPress={() => saveEditing(item.id)} disabled={isSavingEdit}>
                 {isSavingEdit
                   ? <ActivityIndicator size="small" color={colors.navy} />
-                  : <><Ionicons name="checkmark" size={13} color={colors.navy} /><Text style={[S.actionBtnText, { color: colors.navy }]}>Save</Text></>
-                }
+                  : <><Ionicons name="checkmark" size={13} color={colors.navy} /><Text style={[S.actionBtnText, { color: colors.navy }]}>Save</Text></>}
               </TouchableOpacity>
             </>
           ) : (
             <>
-              {/* Next Card — uses openCamera so menu hides again */}
-              <TouchableOpacity style={[S.actionBtn, { backgroundColor: 'rgba(255,255,255,0.22)' }]}
-                onPress={openCamera}>
+              <TouchableOpacity style={[S.actionBtn, { backgroundColor: 'rgba(255,255,255,0.22)' }]} onPress={openCameraForNextCard}>
                 <Ionicons name="scan-outline" size={13} color="#fff" />
                 <Text style={S.actionBtnText}>Next Card</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[S.actionBtn, { backgroundColor: colors.amber }]}
-                onPress={() => startEditing(item)}>
+              <TouchableOpacity style={[S.actionBtn, { backgroundColor: colors.amber }]} onPress={() => startEditing(item)}>
                 <Ionicons name="create-outline" size={13} color={colors.navy} />
                 <Text style={[S.actionBtnText, { color: colors.navy }]}>Edit</Text>
               </TouchableOpacity>
@@ -988,7 +1126,6 @@ export default function ScanScreen() {
           )}
         </View>
 
-        {/* Header row */}
         <TouchableOpacity
           style={[scanStyles.cardHeader, { borderTopColor: colors.border }]}
           onPress={() => { if (!isEditing) setExpandedId(isExpanded ? null : item.id); }}
@@ -1006,12 +1143,10 @@ export default function ScanScreen() {
           {!isEditing && <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={20} color={colors.muted} />}
         </TouchableOpacity>
 
-        {/* Expanded / editing */}
         {isExpanded && (
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={120}>
             <View style={[scanStyles.details, { paddingBottom: isEditing ? 8 : 16 }]}>
 
-              {/* Dual side info banner */}
               {item.hasBothSides && (
                 <View style={S.dualInfoBanner}>
                   <Ionicons name="swap-horizontal" size={14} color={colors.amber} />
@@ -1019,7 +1154,6 @@ export default function ScanScreen() {
                 </View>
               )}
 
-              {/* Smart re-classify banner */}
               {isEditing && (
                 <TouchableOpacity style={S.reclassifyBanner} onPress={handleSmartReclassify}>
                   <Ionicons name="sparkles" size={15} color={colors.amberDark} />
@@ -1028,17 +1162,14 @@ export default function ScanScreen() {
                 </TouchableOpacity>
               )}
 
-              {/* Fields */}
               {displayFields.map(field => (
                 <InlineFieldRow key={field.id} field={field} isEditMode={isEditing}
                   onUpdate={updateLocalField} onDelete={deleteLocalField}
                   onChangeType={changeLocalFieldType} onCopy={handleCopyField} />
               ))}
 
-              {/* Add field */}
               {isEditing && <AddFieldRow onAdd={addLocalField} />}
 
-              {/* Bottom sticky bar — edit mode */}
               {isEditing && (
                 <View style={S.stickyBar}>
                   <TouchableOpacity style={S.stickyCancel} onPress={cancelEditing} disabled={isSavingEdit}>
@@ -1048,23 +1179,26 @@ export default function ScanScreen() {
                   <TouchableOpacity style={S.stickySave} onPress={() => saveEditing(item.id)} disabled={isSavingEdit}>
                     {isSavingEdit
                       ? <ActivityIndicator size="small" color={colors.navy} />
-                      : <><Ionicons name="checkmark-circle-outline" size={16} color={colors.navy} /><Text style={S.stickySaveText}>Save & Sync Contact</Text></>
-                    }
+                      : <><Ionicons name="checkmark-circle-outline" size={16} color={colors.navy} /><Text style={S.stickySaveText}>Save & Sync Contact</Text></>}
                   </TouchableOpacity>
                 </View>
               )}
 
-              {/* Read mode */}
               {!isEditing && (
                 <>
+                  <TouchableOpacity style={S.nextCardBtn} onPress={openCameraForNextCard}>
+                    <Ionicons name="camera-outline" size={17} color="#fff" />
+                    <Text style={S.nextCardBtnText}>Scan Next Card</Text>
+                  </TouchableOpacity>
+
                   <TouchableOpacity
-                    style={[scanStyles.rawButton, { backgroundColor: colors.amber + '15', borderColor: colors.amber, marginTop: 4 }]}
+                    style={[scanStyles.rawButton, { backgroundColor: colors.amber + '15', borderColor: colors.amber, marginTop: 8 }]}
                     onPress={() => handleSaveContact(item)} disabled={savingContact}>
                     {savingContact
                       ? <ActivityIndicator size="small" color={colors.amber} />
-                      : <><Ionicons name="person-add-outline" size={14} color={colors.amberDark} /><Text style={[scanStyles.rawButtonText, { color: colors.amberDark }]}>Save as Contact</Text></>
-                    }
+                      : <><Ionicons name="person-add-outline" size={14} color={colors.amberDark} /><Text style={[scanStyles.rawButtonText, { color: colors.amberDark }]}>Save as Contact</Text></>}
                   </TouchableOpacity>
+
                   {item.data && (
                     <TouchableOpacity
                       style={[scanStyles.rawButton, { backgroundColor: colors.bg, borderColor: colors.border }]}
@@ -1082,42 +1216,42 @@ export default function ScanScreen() {
     );
   };
 
-  // ── Camera full-screen — menu is already hidden ──
   if (showCamera) {
-    return <CameraScanner onCapture={handleCaptured} onClose={closeCamera} />;
+    return (
+      <CameraScanner phase={cameraPhase} onCapture={handleCaptured}
+        onClose={closeCamera} capturedFrontUri={pendingFrontUri} />
+    );
+  }
+
+  if (isProcessing) {
+    return (
+      <View style={S.processingWrap}>
+        <ActivityIndicator size="large" color={colors.amber} />
+        <Text style={S.processingText}>Reading card…</Text>
+        <Text style={S.processingSubText}>Extracting text with ML Kit OCR</Text>
+      </View>
+    );
   }
 
   return (
     <View style={[scanStyles.container, { backgroundColor: colors.phoneBg }]}>
-      {/* Header */}
       <View style={[scanStyles.header, { backgroundColor: colors.navy }]}>
         <View style={scanStyles.headerGlow} />
         <View>
           <Text style={scanStyles.greetText}>SCAN BUSINESS CARDS</Text>
           <Text style={scanStyles.titleText}>Card <Text style={scanStyles.titleSpan}>Scanner</Text></Text>
         </View>
-        <View style={[scanStyles.badge, { backgroundColor: colors.amber + '20' }]}>
-          <Ionicons name="scan-outline" size={16} color={colors.amber} />
-          <Text style={[scanStyles.badgeText, { color: colors.amber }]}>ML Kit</Text>
+        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+          <View style={[scanStyles.badge, { backgroundColor: colors.amber + '20' }]}>
+            <Ionicons name="scan-outline" size={16} color={colors.amber} />
+            <Text style={[scanStyles.badgeText, { color: colors.amber }]}>ML Kit</Text>
+          </View>
+          <TouchableOpacity style={{ backgroundColor: colors.amber, borderRadius: 8, padding: 8 }} onPress={openCameraForNextCard}>
+            <Ionicons name="camera" size={18} color={colors.navy} />
+          </TouchableOpacity>
         </View>
       </View>
 
-      {/* Big Scan Button */}
-      <View style={S.scanBtnWrap}>
-        <TouchableOpacity
-          style={S.scanBtn}
-          onPress={openCamera}
-          disabled={isProcessing}
-          activeOpacity={0.82}
-        >
-          {isProcessing
-            ? <><ActivityIndicator size="small" color={colors.navy} /><Text style={S.scanBtnText}>Processing...</Text></>
-            : <><Ionicons name="camera" size={26} color={colors.navy} /><Text style={S.scanBtnText}>Scan Card</Text></>
-          }
-        </TouchableOpacity>
-      </View>
-
-      {/* Cards list */}
       <FlatList
         data={cards as ExtendedScannedCard[]}
         keyExtractor={item => item.id}
@@ -1125,15 +1259,19 @@ export default function ScanScreen() {
         contentContainerStyle={scanStyles.list}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        ListEmptyComponent={!isProcessing ? (
+        ListEmptyComponent={(
           <View style={scanStyles.emptyContainer}>
             <View style={[scanStyles.emptyIcon, { backgroundColor: colors.amberLight }]}>
               <Ionicons name="scan-outline" size={48} color={colors.amberDark} />
             </View>
-            <Text style={[scanStyles.emptyTitle, { color: colors.text }]}>No cards scanned yet</Text>
-            <Text style={[scanStyles.emptyText, { color: colors.muted }]}>Tap "Scan Card" to get started</Text>
+            <Text style={[scanStyles.emptyTitle, { color: colors.text }]}>Ready to scan</Text>
+            <Text style={[scanStyles.emptyText, { color: colors.muted }]}>Tap below to open camera</Text>
+            <TouchableOpacity style={[S.nextCardBtn, { marginTop: 24, paddingHorizontal: 32 }]} onPress={openCameraForNextCard}>
+              <Ionicons name="camera" size={20} color="#fff" />
+              <Text style={S.nextCardBtnText}>Open Camera</Text>
+            </TouchableOpacity>
           </View>
-        ) : null}
+        )}
       />
     </View>
   );

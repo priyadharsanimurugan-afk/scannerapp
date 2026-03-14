@@ -20,12 +20,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   Linking,
+  PanResponder,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useContact } from '@/hooks/useContact';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
+import { exportContacts } from '@/services/contact';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 type ChipType = 'All' | 'Lead' | 'Partner' | 'Client' | 'Vendor';
 
@@ -81,40 +83,26 @@ const buildImageUri = (base64?: string, mime?: string, url?: string) => {
   return null;
 };
 
+const handlePhonePress = (p: string) => { if (p) Linking.openURL(`tel:${p}`); };
 
-  const handlePhonePress = (p: string) => { if (p) Linking.openURL(`tel:${p}`); };
-// Helper function to handle email
 const handleEmailPress = (email: string) => {
   const url = `mailto:${email}`;
   Linking.canOpenURL(url).then(supported => {
-    if (supported) {
-      Linking.openURL(url);
-    } else {
-      Alert.alert('Error', 'Email is not supported on this device');
-    }
-  }).catch(() => {
-    Alert.alert('Error', 'Could not open email client');
-  });
+    if (supported) Linking.openURL(url);
+    else Alert.alert('Error', 'Email is not supported on this device');
+  }).catch(() => Alert.alert('Error', 'Could not open email client'));
 };
 
-// Helper function to handle website links
 const handleWebsitePress = (website: string) => {
   let url = website;
-  if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    url = 'https://' + url;
-  }
+  if (!url.startsWith('http://') && !url.startsWith('https://')) url = 'https://' + url;
   Linking.canOpenURL(url).then(supported => {
-    if (supported) {
-      Linking.openURL(url);
-    } else {
-      Alert.alert('Error', 'Cannot open this website');
-    }
-  }).catch(() => {
-    Alert.alert('Error', 'Could not open website');
-  });
+    if (supported) Linking.openURL(url);
+    else Alert.alert('Error', 'Cannot open this website');
+  }).catch(() => Alert.alert('Error', 'Could not open website'));
 };
 
-// ─── Image Fullscreen Viewer ──────────────────────────────────────────────
+// ─── Pinch-to-Zoom Image Viewer ───────────────────────────────────────────
 
 const ImageViewer = ({
   visible,
@@ -126,24 +114,150 @@ const ImageViewer = ({
   uri: string | null;
   label: string;
   onClose: () => void;
-}) => (
-  <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
-    <View style={contactsStyles.imgViewerOverlay}>
-      <TouchableOpacity style={contactsStyles.imgViewerClose} onPress={onClose}>
-        <Icon name="close-circle" size={32} color={colors.white} />
-      </TouchableOpacity>
-      <Text style={contactsStyles.imgViewerLabel}>{label}</Text>
-      {uri ? (
-        <Image source={{ uri }} style={contactsStyles.imgViewerImage} resizeMode="contain" />
-      ) : (
-        <View style={contactsStyles.imgViewerPlaceholder}>
-          <Icon name="image-outline" size={48} color={colors.muted} />
-          <Text style={{ color: colors.muted, marginTop: 8 }}>No image available</Text>
-        </View>
-      )}
-    </View>
-  </Modal>
-);
+}) => {
+  const scale = useRef(new Animated.Value(1)).current;
+  const translateX = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(0)).current;
+
+  // Track raw values for gesture math
+  const currentScale = useRef(1);
+  const currentTranslateX = useRef(0);
+  const currentTranslateY = useRef(0);
+
+  // For pinch
+  const initialDistance = useRef<number | null>(null);
+  const initialScale = useRef(1);
+
+  // For pan
+  const lastTouchX = useRef(0);
+  const lastTouchY = useRef(0);
+  const isPinching = useRef(false);
+
+  const resetTransform = () => {
+    currentScale.current = 1;
+    currentTranslateX.current = 0;
+    currentTranslateY.current = 0;
+    Animated.parallel([
+      Animated.spring(scale, { toValue: 1, useNativeDriver: true }),
+      Animated.spring(translateX, { toValue: 0, useNativeDriver: true }),
+      Animated.spring(translateY, { toValue: 0, useNativeDriver: true }),
+    ]).start();
+  };
+
+  const getDistance = (touches: any[]) => {
+    const dx = touches[0].pageX - touches[1].pageX;
+    const dy = touches[0].pageY - touches[1].pageY;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  const getMidpoint = (touches: any[]) => ({
+    x: (touches[0].pageX + touches[1].pageX) / 2,
+    y: (touches[0].pageY + touches[1].pageY) / 2,
+  });
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (e) => {
+        const touches = e.nativeEvent.touches;
+        if (touches.length === 2) {
+          isPinching.current = true;
+          initialDistance.current = getDistance(touches);
+          initialScale.current = currentScale.current;
+        } else if (touches.length === 1) {
+          isPinching.current = false;
+          lastTouchX.current = touches[0].pageX;
+          lastTouchY.current = touches[0].pageY;
+        }
+      },
+      onPanResponderMove: (e) => {
+        const touches = e.nativeEvent.touches;
+        if (touches.length === 2 && initialDistance.current) {
+          isPinching.current = true;
+          const newDistance = getDistance(touches);
+          const newScale = Math.max(1, Math.min(5, initialScale.current * (newDistance / initialDistance.current)));
+          currentScale.current = newScale;
+          scale.setValue(newScale);
+        } else if (touches.length === 1 && !isPinching.current) {
+          if (currentScale.current > 1) {
+            const dx = touches[0].pageX - lastTouchX.current;
+            const dy = touches[0].pageY - lastTouchY.current;
+            currentTranslateX.current += dx;
+            currentTranslateY.current += dy;
+            translateX.setValue(currentTranslateX.current);
+            translateY.setValue(currentTranslateY.current);
+          }
+          lastTouchX.current = touches[0].pageX;
+          lastTouchY.current = touches[0].pageY;
+        }
+      },
+      onPanResponderRelease: (e) => {
+        isPinching.current = false;
+        initialDistance.current = null;
+        // Snap back if scale < 1.1
+        if (currentScale.current < 1.1) {
+          resetTransform();
+        }
+      },
+    })
+  ).current;
+
+  // Reset on open
+  useEffect(() => {
+    if (visible) {
+      resetTransform();
+    }
+  }, [visible]);
+
+  return (
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
+      <View style={contactsStyles.imgViewerOverlay}>
+        <TouchableOpacity style={contactsStyles.imgViewerClose} onPress={onClose}>
+          <Icon name="close-circle" size={32} color={colors.white} />
+        </TouchableOpacity>
+        <Text style={contactsStyles.imgViewerLabel}>{label}</Text>
+
+        {/* Double-tap to reset */}
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => { if (currentScale.current > 1.1) resetTransform(); }}
+          style={{ flex: 1, width: '100%', justifyContent: 'center', alignItems: 'center' }}
+        >
+          {uri ? (
+            <Animated.View
+              {...panResponder.panHandlers}
+              style={{
+                width: SCREEN_WIDTH,
+                height: SCREEN_HEIGHT * 0.75,
+                justifyContent: 'center',
+                alignItems: 'center',
+                transform: [
+                  { scale },
+                  { translateX },
+                  { translateY },
+                ],
+              }}
+            >
+              <Image
+                source={{ uri }}
+                style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT * 0.75 }}
+                resizeMode="contain"
+              />
+            </Animated.View>
+          ) : (
+            <View style={contactsStyles.imgViewerPlaceholder}>
+              <Icon name="image-outline" size={48} color={colors.muted} />
+              <Text style={{ color: colors.muted, marginTop: 8 }}>No image available</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
+    
+      </View>
+    </Modal>
+  );
+};
 
 // ─── Edit Sheet ───────────────────────────────────────────────────────────
 
@@ -163,6 +277,38 @@ type EditForm = {
   website2: string;
   servicesCsv: string;
 };
+
+// Stable field component defined OUTSIDE EditSheet to prevent re-mount on every keystroke
+const EditField = React.memo(({
+  label,
+  value,
+  onChange,
+  placeholder,
+  keyboardType,
+}: {
+  label: string;
+  value: string;
+  onChange: (val: string) => void;
+  placeholder?: string;
+  keyboardType?: any;
+}) => (
+  <View style={contactsStyles.editField}>
+    <Text style={contactsStyles.editFieldLabel}>{label}</Text>
+    <TextInput
+      style={contactsStyles.editFieldInput}
+      value={value}
+      onChangeText={onChange}
+      placeholder={placeholder ?? `Enter ${label.toLowerCase()}...`}
+      placeholderTextColor={colors.inputPlaceholder}
+      keyboardType={keyboardType ?? 'default'}
+      returnKeyType="next"
+      blurOnSubmit={false}
+      // Prevent layout re-calculations from collapsing keyboard
+      autoCorrect={false}
+      autoCapitalize="none"
+    />
+  </View>
+));
 
 const EditSheet = ({
   visible,
@@ -194,6 +340,7 @@ const EditSheet = ({
     servicesCsv: '',
   });
 
+  // Only reset form when contact changes (not on every render)
   useEffect(() => {
     if (contact) {
       setForm({
@@ -213,40 +360,21 @@ const EditSheet = ({
         servicesCsv:   contact.servicesCsv   ?? '',
       });
     }
-  }, [contact]);
+  }, [contact?.id]); // Only re-run when the contact ID changes, not on every prop update
 
-  const set = (key: keyof EditForm) => (val: string) => setForm((f) => ({ ...f, [key]: val }));
-
-  const Field = ({
-    label,
-    field,
-    placeholder,
-    keyboardType,
-  }: {
-    label: string;
-    field: keyof EditForm;
-    placeholder?: string;
-    keyboardType?: any;
-  }) => (
-    <View style={contactsStyles.editField}>
-      <Text style={contactsStyles.editFieldLabel}>{label}</Text>
-      <TextInput
-        style={contactsStyles.editFieldInput}
-        value={form[field]}
-        onChangeText={set(field)}
-        placeholder={placeholder ?? `Enter ${label.toLowerCase()}...`}
-        placeholderTextColor={colors.inputPlaceholder}
-        keyboardType={keyboardType}
-        returnKeyType="next"
-      />
-    </View>
-  );
+  // Stable setters using useCallback to avoid re-creating on every render
+  const setField = useCallback((key: keyof EditForm) => (val: string) => {
+    setForm((f) => ({ ...f, [key]: val }));
+  }, []);
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={contactsStyles.editOverlay}>
         <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        >
           <View style={contactsStyles.editSheet}>
             {/* Handle */}
             <View style={contactsStyles.editHandle} />
@@ -259,30 +387,36 @@ const EditSheet = ({
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 30 }}>
+            {/* Use keyboardShouldPersistTaps to prevent keyboard dismiss on scroll */}
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 30 }}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="none"
+            >
               <Text style={contactsStyles.editSectionHeading}>Personal</Text>
-              <Field label="Full Name"   field="personName" />
-              <Field label="Designation" field="designation" />
+              <EditField label="Full Name"   value={form.personName}   onChange={setField('personName')} />
+              <EditField label="Designation" value={form.designation}  onChange={setField('designation')} />
 
               <Text style={contactsStyles.editSectionHeading}>Company</Text>
-              <Field label="Company Name"  field="companyName" />
-              <Field label="Sub Company"   field="subCompanyName" />
-              <Field label="Branch"        field="branchName" />
+              <EditField label="Company Name" value={form.companyName}    onChange={setField('companyName')} />
+              <EditField label="Sub Company"  value={form.subCompanyName} onChange={setField('subCompanyName')} />
+              <EditField label="Branch"       value={form.branchName}     onChange={setField('branchName')} />
 
               <Text style={contactsStyles.editSectionHeading}>Phone Numbers</Text>
-              <Field label="Phone 1" field="phoneNumber1" keyboardType="phone-pad" />
-              <Field label="Phone 2" field="phoneNumber2" keyboardType="phone-pad" />
-              <Field label="Phone 3" field="phoneNumber3" keyboardType="phone-pad" />
+              <EditField label="Phone 1" value={form.phoneNumber1} onChange={setField('phoneNumber1')} keyboardType="phone-pad" />
+              <EditField label="Phone 2" value={form.phoneNumber2} onChange={setField('phoneNumber2')} keyboardType="phone-pad" />
+              <EditField label="Phone 3" value={form.phoneNumber3} onChange={setField('phoneNumber3')} keyboardType="phone-pad" />
 
               <Text style={contactsStyles.editSectionHeading}>Email</Text>
-              <Field label="Email 1" field="email1" keyboardType="email-address" />
-              <Field label="Email 2" field="email2" keyboardType="email-address" />
+              <EditField label="Email 1" value={form.email1} onChange={setField('email1')} keyboardType="email-address" />
+              <EditField label="Email 2" value={form.email2} onChange={setField('email2')} keyboardType="email-address" />
 
               <Text style={contactsStyles.editSectionHeading}>Other</Text>
-              <Field label="Address"  field="address" />
-              <Field label="Website 1" field="website1" keyboardType="url" />
-              <Field label="Website 2" field="website2" keyboardType="url" />
-              <Field label="Services (comma separated)" field="servicesCsv" />
+              <EditField label="Address"   value={form.address}    onChange={setField('address')} />
+              <EditField label="Website 1" value={form.website1}   onChange={setField('website1')} keyboardType="url" />
+              <EditField label="Website 2" value={form.website2}   onChange={setField('website2')} keyboardType="url" />
+              <EditField label="Services (comma separated)" value={form.servicesCsv} onChange={setField('servicesCsv')} />
 
               <TouchableOpacity
                 style={[contactsStyles.editSaveBtn, saving && { opacity: 0.7 }]}
@@ -325,18 +459,17 @@ const ContactDetailModal = ({
 }) => {
   const [viewingImage, setViewingImage] = useState<{ uri: string | null; label: string } | null>(null);
 
-  // Show modal shell while loading
   if (!visible) return null;
 
-  const InfoRow = ({ icon, label, value, onPress, isClickable = false }: { 
-    icon: string; 
-    label: string; 
+  const InfoRow = ({ icon, label, value, onPress, isClickable = false }: {
+    icon: string;
+    label: string;
     value: string;
     onPress?: () => void;
     isClickable?: boolean;
   }) => (
-    <TouchableOpacity 
-      style={contactsStyles.detailRow} 
+    <TouchableOpacity
+      style={contactsStyles.detailRow}
       onPress={onPress}
       disabled={!isClickable}
       activeOpacity={isClickable ? 0.7 : 1}
@@ -413,10 +546,8 @@ const ContactDetailModal = ({
       <View style={contactsStyles.detailOverlay}>
         <View style={contactsStyles.detailSheet}>
 
-          {/* Drag handle */}
           <View style={contactsStyles.detailHandle} />
 
-          {/* Top bar */}
           <View style={contactsStyles.detailTopBar}>
             <TouchableOpacity onPress={onClose} style={contactsStyles.detailCloseBtn}>
               <Icon name="chevron-down" size={22} color={colors.muted} />
@@ -426,8 +557,8 @@ const ContactDetailModal = ({
               <TouchableOpacity style={contactsStyles.detailActionBtn} onPress={() => onEdit(contact)}>
                 <Icon name="create-outline" size={18} color={colors.amber} />
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={[contactsStyles.detailActionBtn, { borderColor: 'rgba(239,68,68,0.3)', backgroundColor: 'rgba(239,68,68,0.08)' }]} 
+              <TouchableOpacity
+                style={[contactsStyles.detailActionBtn, { borderColor: 'rgba(239,68,68,0.3)', backgroundColor: 'rgba(239,68,68,0.08)' }]}
                 onPress={handleDelete}
               >
                 <Icon name="trash-outline" size={18} color={colors.error} />
@@ -437,7 +568,6 @@ const ContactDetailModal = ({
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
 
-            {/* Hero Header */}
             <View style={contactsStyles.detailHero}>
               <View style={contactsStyles.detailHeroGlow} />
               <View style={[contactsStyles.detailAvatar, { backgroundColor: avatarBg }]}>
@@ -455,7 +585,6 @@ const ContactDetailModal = ({
 
             {/* Business Card Images */}
             <View style={contactsStyles.detailCardsRow}>
-              {/* Front */}
               <TouchableOpacity
                 style={contactsStyles.detailCardBox}
                 onPress={() => setViewingImage({ uri: frontUri, label: 'Front Side' })}
@@ -475,7 +604,6 @@ const ContactDetailModal = ({
                 </View>
               </TouchableOpacity>
 
-              {/* Back */}
               <TouchableOpacity
                 style={contactsStyles.detailCardBox}
                 onPress={() => setViewingImage({ uri: backUri, label: 'Back Side' })}
@@ -498,39 +626,22 @@ const ContactDetailModal = ({
 
             <View style={contactsStyles.detailBody}>
 
-              {/* Phones */}
               {phones.length > 0 && (
                 <SectionCard title="Phone Numbers">
                   {phones.map((p, i) => (
-                    <InfoRow 
-                      key={i} 
-                      icon="call-outline" 
-                      label={i === 0 ? 'Primary' : i === 1 ? 'Office' : 'Mobile 2'} 
-                      value={p}
-                      onPress={() => handlePhonePress(p)}
-                      isClickable={true}
-                    />
+                    <InfoRow key={i} icon="call-outline" label={i === 0 ? 'Primary' : i === 1 ? 'Office' : 'Mobile 2'} value={p} onPress={() => handlePhonePress(p)} isClickable />
                   ))}
                 </SectionCard>
               )}
 
-              {/* Emails */}
               {emails.length > 0 && (
                 <SectionCard title="Email Addresses">
                   {emails.map((e, i) => (
-                    <InfoRow 
-                      key={i} 
-                      icon="mail-outline" 
-                      label={`Email ${i + 1}`} 
-                      value={e}
-                      onPress={() => handleEmailPress(e)}
-                      isClickable={true}
-                    />
+                    <InfoRow key={i} icon="mail-outline" label={`Email ${i + 1}`} value={e} onPress={() => handleEmailPress(e)} isClickable />
                   ))}
                 </SectionCard>
               )}
 
-              {/* Company */}
               {(contact.companyName || contact.subCompanyName || contact.branchName) && (
                 <SectionCard title="Company">
                   {contact.companyName    && <InfoRow icon="business-outline"  label="Company"     value={contact.companyName} />}
@@ -539,30 +650,20 @@ const ContactDetailModal = ({
                 </SectionCard>
               )}
 
-              {/* Address */}
               {contact.address && (
                 <SectionCard title="Address">
                   <InfoRow icon="map-outline" label="Office Address" value={contact.address} />
                 </SectionCard>
               )}
 
-              {/* Websites */}
               {websites.length > 0 && (
                 <SectionCard title="Websites">
                   {websites.map((w, i) => (
-                    <InfoRow 
-                      key={i} 
-                      icon="globe-outline" 
-                      label={`Website ${i + 1}`} 
-                      value={w}
-                      onPress={() => handleWebsitePress(w)}
-                      isClickable={true}
-                    />
+                    <InfoRow key={i} icon="globe-outline" label={`Website ${i + 1}`} value={w} onPress={() => handleWebsitePress(w)} isClickable />
                   ))}
                 </SectionCard>
               )}
 
-              {/* Services */}
               {services.length > 0 && (
                 <SectionCard title="Services">
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 4 }}>
@@ -575,13 +676,11 @@ const ContactDetailModal = ({
                 </SectionCard>
               )}
 
-              {/* Meta */}
               <SectionCard title="Meta">
                 <InfoRow icon="calendar-outline" label="Added On" value={new Date(contact.createdAtUtc).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} />
                 <InfoRow icon="finger-print-outline" label="Contact ID" value={String(contact.id)} />
               </SectionCard>
 
-              {/* Edit Button */}
               <TouchableOpacity style={contactsStyles.detailEditBtn} onPress={() => onEdit(contact)}>
                 <Icon name="create-outline" size={18} color={colors.navy} />
                 <Text style={contactsStyles.detailEditBtnText}>Edit Contact</Text>
@@ -592,7 +691,7 @@ const ContactDetailModal = ({
         </View>
       </View>
 
-      {/* Fullscreen image viewer */}
+      {/* Pinch-to-zoom image viewer */}
       <ImageViewer
         visible={!!viewingImage}
         uri={viewingImage?.uri ?? null}
@@ -706,6 +805,10 @@ export default function ContactsScreen() {
     await fetchContacts(1);
     setRefreshing(false);
   };
+ 
+  const handleAdd = () => {
+ router.push('/scan'); // Replace 'Scan' with the actual name of your screen
+  };
 
   const handleDelete = async (id: string | number) => {
     try {
@@ -805,12 +908,22 @@ export default function ContactsScreen() {
               <Text style={contactsStyles.titleText}>Contacts</Text>
             </View>
             <View style={contactsStyles.headerActions}>
-              <TouchableOpacity style={contactsStyles.headerBtn}>
-                <Icon name="document-text-outline" size={14} color={colors.amber} />
+             <TouchableOpacity
+                style={contactsStyles.headerBtn}
+                onPress={async () => {
+                  try {
+                    await exportContacts();
+                  } catch {
+                    Alert.alert("Error", "Failed to export contacts");
+                  }
+                }}
+              >
+                <Icon name="download" size={14} color={colors.amber} />
               </TouchableOpacity>
-              <TouchableOpacity style={contactsStyles.headerBtn}>
-                <Icon name="add-outline" size={14} color={colors.amber} />
-              </TouchableOpacity>
+
+        <TouchableOpacity style={contactsStyles.headerBtn} onPress={handleAdd}>
+        <Icon name="add-outline" size={14} color={colors.amber} />
+      </TouchableOpacity>
             </View>
           </View>
         </View>

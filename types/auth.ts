@@ -10,6 +10,9 @@ export interface VerifyEmail {
   code: string;
 }
 
+export interface RefreshToken {
+  refreshToken: string;
+}
 export interface Login {
   email: string;
   password: string;

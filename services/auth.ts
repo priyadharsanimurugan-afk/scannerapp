@@ -5,11 +5,18 @@ import {
   Login,
   ForgotPassword,
   ResetPassword,
+  RefreshToken,
 } from "@/types/auth";
 
 // SIGNUP
 export const signUpUser = async (data: SignUp) => {
   const res = await api.post("/auth/signup", data);
+  return res.data;
+};
+
+// REFRESH TOKEN
+export const refreshTokenUser = async (data: RefreshToken) => {
+  const res = await api.post("/auth/refresh-token",data);
   return res.data;
 };
 

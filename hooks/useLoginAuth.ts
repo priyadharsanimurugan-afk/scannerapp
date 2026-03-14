@@ -6,7 +6,8 @@ import {
   signUpUser,
   forgotPasswordUser
 } from "@/services/auth";
-import { saveToken } from '@/utils/tokenStorage';
+import { saveTokens } from '@/utils/tokenStorage';
+
 
 
 interface AuthState {
@@ -125,14 +126,16 @@ const handleLogin = async (): Promise<void> => {
       throw new Error("Token not received");
     }
 
-   
+    // ✅ Save BOTH tokens
+    await saveTokens(res.accessToken, res.refreshToken);
+
+    console.log("Access Token:", res.accessToken);
+    console.log("Refresh Token:", res.refreshToken);
 
     showToast("Login successful!", "success");
-     await saveToken(res.accessToken);
-
-    console.log("Token saved:", res.accessToken);
 
     router.replace("/dashboard");
+
   } catch (error: any) {
     showToast(
       error?.response?.data?.message || error.message || "Login failed",
@@ -142,6 +145,7 @@ const handleLogin = async (): Promise<void> => {
     setLoading((prev) => ({ ...prev, login: false }));
   }
 };
+
 
 
 const handleSignup = async (): Promise<void> => {

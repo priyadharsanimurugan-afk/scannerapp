@@ -1,5 +1,8 @@
 import api from "./api";
 import { CreateContact, ContactDetail, PaginatedContacts } from "@/types/contact";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
+import { Buffer } from "buffer";
 
 // Create a new contact
 export const createContact = async (data: CreateContact): Promise<ContactDetail> => {
@@ -31,9 +34,23 @@ export const deleteContact = async (id: string | number): Promise<void> => {
 };
 
 // Export contacts as Excel
-export const exportContacts = async (): Promise<Blob> => {
-  const res = await api.get("/export/contacts.xlsx", {
-    responseType: "blob",
-  });
-  return res.data;
+export const exportContacts = async () => {
+  try {
+    const res = await api.get("/export/contacts.xlsx", {
+      responseType: "arraybuffer",
+    });
+
+    const fileUri = FileSystem.documentDirectory + "contacts.xlsx";
+
+    const base64Data = Buffer.from(res.data, "binary").toString("base64");
+
+    await FileSystem.writeAsStringAsync(fileUri, base64Data, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+
+    await Sharing.shareAsync(fileUri);
+  } catch (error) {
+    console.error(error);
+    throw new Error("Export failed");
+  }
 };
