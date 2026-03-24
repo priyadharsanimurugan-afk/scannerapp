@@ -153,7 +153,7 @@ const handleShareContact = async (contact: ContactDetail) => {
   }
 };
 
-// ─── Image Viewer Component with Swipe Support ──
+// ─── Image Viewer Component with Swipe Support & Rotation ──
 const ContactImageViewer = ({
   visible,
   images,
@@ -166,16 +166,54 @@ const ContactImageViewer = ({
   onClose: () => void;
 }) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const [rotation, setRotation] = useState(0);
+  // Animated value for smooth rotation
+  const rotateAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
       setCurrentIndex(initialIndex);
+      // Reset rotation when image changes (optional)
+      setRotation(0);
+      rotateAnim.setValue(0);
     }
   }, [visible, initialIndex]);
+
+  useEffect(() => {
+    // Animate rotation change
+    Animated.timing(rotateAnim, {
+      toValue: rotation,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [rotation]);
 
   if (!visible) return null;
 
   const imageUrls = images.map(img => ({ url: img.url }));
+
+  const renderImage = (props: any) => {
+    // Props from ImageViewer: { source, style, ... }
+    const rotate = rotateAnim.interpolate({
+      inputRange: [-360, 360],
+      outputRange: ['-360deg', '360deg'],
+    });
+    return (
+      <Animated.Image
+        {...props}
+        style={[
+          props.style,
+          {
+            transform: [{ rotate: rotateAnim.interpolate({
+              inputRange: [-360, 360],
+              outputRange: ['-360deg', '360deg'],
+            }) }],
+          },
+        ]}
+        resizeMode="contain"
+      />
+    );
+  };
 
   return (
     <Modal visible={visible} transparent={false} onRequestClose={onClose} statusBarTranslucent>
@@ -189,32 +227,38 @@ const ContactImageViewer = ({
         backgroundColor="#000000"
         onIndexChange={(index: React.SetStateAction<number>) => setCurrentIndex(index)}
         renderHeader={() => (
-          <SafeAreaView style={ivs.safeHeader}>
-            <View style={ivs.header}>
-              <TouchableOpacity onPress={onClose} style={ivs.closeButton}>
-                <Icon name="close" size={24} color="#FFFFFF" />
-              </TouchableOpacity>
-              <Text style={ivs.headerTitle} numberOfLines={1}>
-                {images[currentIndex]?.label || `Image ${currentIndex + 1} of ${images.length}`}
-              </Text>
-              <View style={{ width: 44 }} />
-            </View>
-          </SafeAreaView>
-        )}
-        renderIndicator={(currentIndex, allSize) => (
-          <View style={ivs.indicatorContainer}>
-            <Text style={ivs.indicatorText}>
-              {currentIndex} / {allSize}
-            </Text>
-          </View>
-        )}
-        renderFooter={() => (
-          <View style={ivs.footer}>
-            <Text style={ivs.footerText}>
-              Swipe left/right to navigate • Pinch to zoom
-            </Text>
-          </View>
-        )}
+  <SafeAreaView style={ivs.safeHeader}>
+    <View style={ivs.header}>
+      
+      {/* Close */}
+      <TouchableOpacity onPress={onClose} style={ivs.closeButton}>
+        <Icon name="close" size={20} color="#fff" />
+      </TouchableOpacity>
+
+      {/* Title */}
+      <Text style={ivs.headerTitle}>
+        {images[currentIndex]?.label || `Image ${currentIndex + 1}`}
+      </Text>
+
+      {/* Rotate */}
+      <TouchableOpacity onPress={() => setRotation((r) => r - 90)} style={ivs.rotateButton}>
+        <Icon name="refresh-outline"   size={20} color="#fff" />
+      </TouchableOpacity>
+
+    </View>
+  </SafeAreaView>
+)}
+
+       renderIndicator={(currentIndex, allSize) => (
+  <View style={ivs.bottomIndicator}>
+    <Text style={ivs.indicatorText}>
+      {currentIndex} / {allSize}
+    </Text>
+  </View>
+)}
+
+      
+        renderImage={renderImage}
         doubleClickInterval={300}
         enableImageZoom
         useNativeDriver
@@ -241,14 +285,36 @@ const ivs = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.5)",
   },
   closeButton: {
-    width: 44,
-    height: 44,
+    width: 40,
+    height: 40,
     borderRadius: 22,
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.2)",
+    marginTop: 60,
+  },
+  rotateButton: {
+width: 40,
+    height: 40,
+    borderRadius: 22,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+    marginTop: 60,
+  },
+   bottomIndicator: {
+    position: "absolute",
+    bottom: Platform.OS === "ios" ? 40 : 20,
+    alignSelf: "center",
+    backgroundColor: "rgba(0,0,0,0.5)",
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 14,
+    zIndex: 1000,
   },
   headerTitle: {
     color: "#FFFFFF",
@@ -256,7 +322,8 @@ const ivs = StyleSheet.create({
     fontWeight: "600",
     flex: 1,
     textAlign: "center",
-    marginHorizontal: 12,
+    // marginHorizontal: 12,
+    marginTop: 60,
   },
   indicatorContainer: {
     position: "absolute",
@@ -996,6 +1063,8 @@ export default function ContactsScreen() {
   const [editContact, setEditContact]         = useState<ContactDetail | null>(null);
   const [saving, setSaving]                   = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+
+
   const CONTACTS_PER_PAGE = 10;
 
   const {
@@ -1004,6 +1073,7 @@ export default function ContactsScreen() {
     editContact: updateContactHook,
     loadMore, total,
   } = useContact(1, 50);
+
 
   // Pagination logic
   const filteredContacts = contacts.filter((c) => {

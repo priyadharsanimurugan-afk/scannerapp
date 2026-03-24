@@ -45,7 +45,10 @@ export const loginStyles = StyleSheet.create({
     flex: 1,
     backgroundColor: isLargeScreen ? colors.navy : colors.phoneBg,
   },
-
+// Add to your loginStyles
+btnDisabled: {
+  opacity: 0.7,
+},
   scrollView: {
     flex: 1,
   },

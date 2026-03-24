@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, TextInput, TouchableOpacity } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import { View, Text, TextInput, TouchableOpacity, Animated, Easing } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { loginStyles } from '@/components/styles/loginStyles';
 import { colors } from '../constants/colors';
@@ -50,6 +50,36 @@ interface AuthFormsProps {
 
   checkStrength: (val: string) => void;
 }
+
+// Spinning Loader Component
+const SpinningLoader = ({ size = 18, color = colors.navy }) => {
+  const spinValue = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const spinAnimation = Animated.loop(
+      Animated.timing(spinValue, {
+        toValue: 1,
+        duration: 1000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    );
+    spinAnimation.start();
+    
+    return () => spinAnimation.stop();
+  }, [spinValue]);
+
+  const spin = spinValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
+  return (
+    <Animated.View style={{ transform: [{ rotate: spin }] }}>
+      <Icon name="refresh-outline" size={size} color={color} />
+    </Animated.View>
+  );
+};
 
 export const AuthForms: React.FC<AuthFormsProps> = ({
   // Login
@@ -102,15 +132,14 @@ export const AuthForms: React.FC<AuthFormsProps> = ({
           <TextInput
             style={loginStyles.input}
             keyboardType="phone-pad"
-              maxLength={10}
-                onChangeText={(text) => {
-                  const cleaned = text.replace(/[^0-9]/g, ""); // allow only digits
-                  setPhoneNumber(cleaned);
-                }}
+            maxLength={10}
+            onChangeText={(text) => {
+              const cleaned = text.replace(/[^0-9]/g, ""); // allow only digits
+              setPhoneNumber(cleaned);
+            }}
             placeholder="9876543210"
             placeholderTextColor={colors.inputPlaceholder}
             value={phoneNumber}
-         
           />
         </View>
       </View>
@@ -173,15 +202,20 @@ export const AuthForms: React.FC<AuthFormsProps> = ({
       </View>
 
       <TouchableOpacity
-        style={loginStyles.btn}
+        style={[loginStyles.btn, loading.signup && loginStyles.btnDisabled]}
         onPress={handleSignup}
         disabled={loading.signup}>
         {loading.signup ? (
-          <Icon name="refresh-outline" size={18} color={colors.navy} />
+          <>
+            <SpinningLoader size={18} color={colors.navy} />
+            <Text style={loginStyles.btnText}>Creating account...</Text>
+          </>
         ) : (
-          <Icon name="person-add-outline" size={18} color={colors.navy} />
+          <>
+            <Icon name="person-add-outline" size={18} color={colors.navy} />
+            <Text style={loginStyles.btnText}>Create Account</Text>
+          </>
         )}
-        <Text style={loginStyles.btnText}>{loading.signup ? 'Creating account...' : 'Create Account'}</Text>
       </TouchableOpacity>
 
       <TouchableOpacity onPress={() => setActiveTab('login')}>
@@ -239,15 +273,20 @@ export const AuthForms: React.FC<AuthFormsProps> = ({
       </View>
 
       <TouchableOpacity
-        style={loginStyles.btn}
+        style={[loginStyles.btn, loading.login && loginStyles.btnDisabled]}
         onPress={handleLogin}
         disabled={loading.login}>
         {loading.login ? (
-          <Icon name="refresh-outline" size={18} color={colors.navy} />
+          <>
+            <SpinningLoader size={18} color={colors.navy} />
+            <Text style={loginStyles.btnText}>Signing in...</Text>
+          </>
         ) : (
-          <Icon name="log-in-outline" size={18} color={colors.navy} />
+          <>
+            <Icon name="log-in-outline" size={18} color={colors.navy} />
+            <Text style={loginStyles.btnText}>Sign In</Text>
+          </>
         )}
-        <Text style={loginStyles.btnText}>{loading.login ? 'Signing in...' : 'Sign In'}</Text>
       </TouchableOpacity>
 
       <TouchableOpacity onPress={() => setActiveTab('signup')}>

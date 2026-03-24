@@ -95,7 +95,7 @@ function LayoutContent() {
             marginBottom: 20,
           }}
         >
-          Loading your dashboard...
+          Loading your screen...
         </Text>
 
         {/* Loader */}

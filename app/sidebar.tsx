@@ -93,7 +93,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
      <View >
   <Image 
     source={require('@/assets/images/scannerlogo.png')} 
-    style={{ width: 50, height: 50 }} 
+    style={{ width: 40, height: 40 }} 
     resizeMode="contain"
   />
 </View>

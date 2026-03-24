@@ -15,14 +15,13 @@ import {
   Image,
   Modal,
   Linking,
+  Dimensions,
   Platform,
   useWindowDimensions,
-  TextStyle,
-  ViewStyle,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useContact } from '@/hooks/useContact';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { exportContactsWeb } from '@/services/contact';
 import { SidebarLayout } from './sidebar';
 import { useProfile } from '@/hooks/useProfile';
@@ -48,11 +47,11 @@ const getAvatarColor = (name: string) => {
 
 // ─── Responsive Utilities ────────────────────────────────────────────────────
 const getResponsiveConfig = (width: number) => {
-  if (width < 640) return { columns: 1, gap: 12, paddingHorizontal: 16 };
-  if (width < 768) return { columns: 2, gap: 12, paddingHorizontal: 16 };
-  if (width < 1024) return { columns: 2, gap: 14, paddingHorizontal: 24 };
-  if (width < 1280) return { columns: 3, gap: 14, paddingHorizontal: 24 };
-  return { columns: 3, gap: 14, paddingHorizontal: 32 };
+  if (width < 640) return { columns: 1, gap: 12, paddingHorizontal: 16, cardWidth: '100%' };
+  if (width < 768) return { columns: 2, gap: 12, paddingHorizontal: 16, cardWidth: 'calc(50% - 6px)' };
+  if (width < 1024) return { columns: 2, gap: 14, paddingHorizontal: 24, cardWidth: 'calc(50% - 7px)' };
+  if (width < 1280) return { columns: 3, gap: 14, paddingHorizontal: 24, cardWidth: 'calc(33.333% - 10px)' };
+  return { columns: 3, gap: 14, paddingHorizontal: 32, cardWidth: 'calc(33.333% - 10px)' };
 };
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
@@ -71,33 +70,27 @@ const Toast = ({ msg, type }: { msg: string; type: ToastType }) => {
   const { width } = useWindowDimensions();
   const isMobile = width < 640;
   
-  const toastStyle: ViewStyle = {
-    position: Platform.OS === 'web' ? ('fixed' as any) : 'absolute',
-    bottom: isMobile ? 20 : 28,
-    left: isMobile ? 20 : undefined,
-    right: isMobile ? 20 : 28,
-    zIndex: 9999,
-    backgroundColor: type === 'success' ? '#16a34a' : type === 'error' ? colors.error : colors.navy,
-    borderRadius: 12,
-    paddingHorizontal: isMobile ? 16 : 20,
-    paddingVertical: isMobile ? 12 : 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    shadowColor: '#000',
-    shadowOpacity: 0.22,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 5,
-  };
-  
-  if (isMobile) {
-    (toastStyle as any).marginHorizontal = 'auto';
-    (toastStyle as any).maxWidth = '90%';
-  }
-  
   return (
-    <View style={toastStyle}>
+    <View style={{
+      position: Platform.OS === 'web' ? ('fixed' as any) : 'absolute',
+      bottom: isMobile ? 20 : 28,
+      left: isMobile ? 20 : undefined,
+      right: isMobile ? 20 : 28,
+      zIndex: 9999,
+      backgroundColor: type === 'success' ? '#16a34a' : type === 'error' ? colors.error : colors.navy,
+      borderRadius: 12,
+      paddingHorizontal: isMobile ? 16 : 20,
+      paddingVertical: isMobile ? 12 : 14,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      shadowColor: '#000',
+      shadowOpacity: 0.22,
+      shadowRadius: 20,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 5,
+      ...(isMobile && { marginHorizontal: 'auto', maxWidth: '90%' }),
+    }}>
       <Icon
         name={type === 'success' ? 'checkmark-circle' : type === 'error' ? 'alert-circle' : 'information-circle'}
         size={isMobile ? 16 : 18}
@@ -239,23 +232,14 @@ const ImageViewer = ({ visible, images, currentIndex, label, onClose, onNext, on
   const hasPrev = currentIndex > 0 && images[currentIndex - 1]?.uri;
   const hasNext = currentIndex < images.length - 1 && images[currentIndex + 1]?.uri;
 
-  const imageContainerStyle: ViewStyle = {
-    transform: [
-      { translateX: offset.x },
-      { translateY: offset.y },
-      { scale },
-      { rotate: `${rotate}deg` as any },
-    ],
-  };
-  
-  if (Platform.OS === 'web') {
-    (imageContainerStyle as any).cursor = dragRef.current.active ? 'grabbing' : 'grab';
-    (imageContainerStyle as any).userSelect = 'none';
-  }
-
   return (
     <Modal visible animationType="fade" transparent onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: 'rgba(5,5,10,0.97)', justifyContent: 'center', alignItems: 'center' }}>
+      <View
+        style={{ flex: 1, backgroundColor: 'rgba(5,5,10,0.97)', justifyContent: 'center', alignItems: 'center' }}
+        onMouseMove={Platform.OS === 'web' ? onMouseMove : undefined}
+        onMouseUp={Platform.OS === 'web' ? onMouseUp : undefined}
+        onMouseLeave={Platform.OS === 'web' ? onMouseUp : undefined}
+      >
         {/* Top bar */}
         <View style={{
           position: 'absolute' as any,
@@ -269,6 +253,7 @@ const ImageViewer = ({ visible, images, currentIndex, label, onClose, onNext, on
           paddingHorizontal: isMobile ? 12 : 24,
           paddingVertical: isMobile ? 10 : 14,
           backgroundColor: 'rgba(0,0,0,0.55)',
+          ...(Platform.OS === 'web' && { backdropFilter: 'blur(12px)' }),
         }}>
           <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: isMobile ? 11 : 14, fontWeight: '700', letterSpacing: 0.3 }}>
             {label} · {currentIndex + 1}/{images.length}
@@ -341,11 +326,19 @@ const ImageViewer = ({ visible, images, currentIndex, label, onClose, onNext, on
         {/* Image area */}
         <View
           onMouseDown={Platform.OS === 'web' ? onMouseDown : undefined}
-          onMouseMove={Platform.OS === 'web' ? onMouseMove : undefined}
-          onMouseUp={Platform.OS === 'web' ? onMouseUp : undefined}
-          onMouseLeave={Platform.OS === 'web' ? onMouseUp : undefined}
           onWheel={Platform.OS === 'web' ? onWheel : undefined}
-          style={imageContainerStyle}
+          style={{
+            transform: [
+              { translateX: offset.x },
+              { translateY: offset.y },
+              { scale },
+              { rotate: `${rotate}deg` as any },
+            ],
+            ...(Platform.OS === 'web' && {
+              cursor: dragRef.current.active ? 'grabbing' : 'grab',
+              userSelect: 'none',
+            }),
+          }}
         >
           {uri ? (
             <Image
@@ -375,34 +368,31 @@ const ImageViewer = ({ visible, images, currentIndex, label, onClose, onNext, on
 // ─── Edit Field ───────────────────────────────────────────────────────────────
 const EditField = React.memo(({ label, value, onChange, keyboardType }: {
   label: string; value: string; onChange: (v: string) => void; keyboardType?: any;
-}) => {
-  const inputStyle: TextStyle[] = [contactsStyles.editFieldInput];
-  if (Platform.OS === 'web') {
-    (inputStyle as any).push({ outlineStyle: 'none' } as any);
-  }
-  
-  return (
-    <View style={contactsStyles.editField}>
-      <Text style={contactsStyles.editFieldLabel}>{label}</Text>
-      <TextInput
-        style={inputStyle}
-        value={value}
-        onChangeText={onChange}
-        placeholder={`Enter ${label.toLowerCase()}…`}
-        placeholderTextColor={colors.inputPlaceholder}
-        keyboardType={keyboardType ?? 'default'}
-        autoCorrect={false}
-        autoCapitalize="none"
-      />
-    </View>
-  );
-});
+}) => (
+  <View style={contactsStyles.editField}>
+    <Text style={contactsStyles.editFieldLabel}>{label}</Text>
+    <TextInput
+      style={[contactsStyles.editFieldInput, Platform.OS === 'web' && { outlineStyle: 'none' }]}
+      value={value}
+      onChangeText={onChange}
+      placeholder={`Enter ${label.toLowerCase()}…`}
+      placeholderTextColor={colors.inputPlaceholder}
+      keyboardType={keyboardType ?? 'default'}
+      autoCorrect={false}
+      autoCapitalize="none"
+    />
+  </View>
+));
 
 // ─── Edit Dialog ──────────────────────────────────────────────────────────────
 type EditForm = {
   personName: string; designation: string; companyName: string; subCompanyName: string;
   branchName: string; phoneNumber1: string; phoneNumber2: string; phoneNumber3: string;
   email1: string; email2: string; address: string; website1: string; website2: string; servicesCsv: string;
+  // NEW FIELDS
+  qrCodeDetail: string;    // QR / Link
+  gstNumber: string;       // GST Number
+  partnership: string;     // Partnership
 };
 
 const EditDialog = ({ visible, contact, onClose, onSave, saving }: {
@@ -417,6 +407,7 @@ const EditDialog = ({ visible, contact, onClose, onSave, saving }: {
     personName: '', designation: '', companyName: '', subCompanyName: '',
     branchName: '', phoneNumber1: '', phoneNumber2: '', phoneNumber3: '',
     email1: '', email2: '', address: '', website1: '', website2: '', servicesCsv: '',
+    qrCodeDetail: '', gstNumber: '', partnership: '',
   };
   const [form, setForm] = useState<EditForm>(blank);
 
@@ -436,6 +427,9 @@ const EditDialog = ({ visible, contact, onClose, onSave, saving }: {
       website1:       contact.website1       ?? '',
       website2:       contact.website2       ?? '',
       servicesCsv:    contact.servicesCsv    ?? '',
+      qrCodeDetail:   contact.qrCodeDetail   ?? '',   // new
+      gstNumber:      contact.gstNumber      ?? '',   // new
+      partnership:    contact.partnership    ?? '',   // new
     });
   }, [contact?.id]);
 
@@ -448,25 +442,22 @@ const EditDialog = ({ visible, contact, onClose, onSave, saving }: {
     </View>
   );
 
-  const dialogStyle: ViewStyle = {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    width: isMobile ? '100%' : isTablet ? 540 : 620,
-    maxWidth: '100%',
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOpacity: 0.22,
-    shadowRadius: 40,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 5,
-  };
-  
-  (dialogStyle as any).maxHeight = '88vh';
-
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: isMobile ? 16 : 0 }}>
-        <View style={dialogStyle}>
+        <View style={{
+          backgroundColor: '#fff',
+          borderRadius: 20,
+          width: isMobile ? '100%' : isTablet ? 540 : 620,
+          maxWidth: '100%',
+          maxHeight: '88vh',
+          overflow: 'hidden',
+          shadowColor: '#000',
+          shadowOpacity: 0.22,
+          shadowRadius: 40,
+          shadowOffset: { width: 0, height: 10 },
+          elevation: 5,
+        }}>
           {/* Header */}
           <View style={{
             flexDirection: 'row',
@@ -523,6 +514,14 @@ const EditDialog = ({ visible, contact, onClose, onSave, saving }: {
               <View style={{ flex: 1 }}><EditField label="Website 2" value={form.website2} onChange={f('website2')} keyboardType="url" /></View>
             </Row2>
             <EditField label="Services (comma separated)" value={form.servicesCsv} onChange={f('servicesCsv')} />
+
+            {/* NEW SECTION: QR Code & Business Info */}
+            <Text style={contactsStyles.editSectionHeading}>QR Code & Business</Text>
+            <EditField label="QR / Link" value={form.qrCodeDetail} onChange={f('qrCodeDetail')} keyboardType="url" />
+            <Row2>
+              <View style={{ flex: 1 }}><EditField label="GST Number" value={form.gstNumber} onChange={f('gstNumber')} /></View>
+              <View style={{ flex: 1 }}><EditField label="Partnership" value={form.partnership} onChange={f('partnership')} /></View>
+            </Row2>
 
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 24 }}>
               <TouchableOpacity
@@ -609,11 +608,8 @@ const DetailPanel = ({ visible, contact, loading: loadingDetail, onClose, onEdit
     shadowOffset: { width: -4, height: 0 },
     elevation: 5,
     transform: [{ translateX: visible ? 0 : panelWidth }],
+    transition: Platform.OS === 'web' ? 'transform 0.28s cubic-bezier(0.4,0,0.2,1)' : undefined,
   };
-  
-  if (Platform.OS === 'web') {
-    panelStyle.transition = 'transform 0.28s cubic-bezier(0.4,0,0.2,1)';
-  }
 
   if (!visible) return null;
 
@@ -646,14 +642,6 @@ const DetailPanel = ({ visible, contact, loading: loadingDetail, onClose, onEdit
   const handleImageClick = (index: number) => {
     setViewingImage({ images: cardImages, currentIndex: index });
   };
-
-  const cardBoxStyle: ViewStyle = contactsStyles.detailCardBox as ViewStyle;
-  if (isMobile) {
-    (cardBoxStyle as any).width = '48%';
-  }
-  if (Platform.OS === 'web') {
-    (cardBoxStyle as any).cursor = 'zoom-in';
-  }
 
   return (
     <View style={panelStyle}>
@@ -710,7 +698,7 @@ const DetailPanel = ({ visible, contact, loading: loadingDetail, onClose, onEdit
             {cardImages.map((img, idx) => (
               <TouchableOpacity
                 key={idx}
-                style={[contactsStyles.detailCardBox, isMobile && { width: '48%' }]}
+                style={[contactsStyles.detailCardBox, { width: isMobile ? '48%' : 'auto', cursor: Platform.OS === 'web' ? 'zoom-in' : undefined }]}
                 onPress={() => handleImageClick(idx)}
                 activeOpacity={0.85}
               >
@@ -776,13 +764,25 @@ const DetailPanel = ({ visible, contact, loading: loadingDetail, onClose, onEdit
               </View>
             </Section>
           )}
+          {/* QR Code and Business Info sections */}
+          {contact.qrCodeDetail ? (
+            <Section title="QR Code">
+              <InfoRow icon="qr-code-outline" label="QR / Link" value={contact.qrCodeDetail} href={contact.qrCodeDetail} />
+            </Section>
+          ) : null}
+          {(contact.gstNumber || contact.partnership) ? (
+            <Section title="Business Info">
+              {contact.gstNumber   && <InfoRow icon="receipt-outline"       label="GST Number"  value={contact.gstNumber} />}
+              {contact.partnership && <InfoRow icon="people-circle-outline" label="Partnership" value={contact.partnership} />}
+            </Section>
+          ) : null}
           <Section title="Meta">
             <InfoRow icon="calendar-outline"     label="Added On"   value={new Date(contact.createdAtUtc).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} />
             <InfoRow icon="finger-print-outline" label="Contact ID" value={String(contact.id)} />
           </Section>
 
           <TouchableOpacity
-            style={[contactsStyles.detailEditBtn, { marginBottom: isMobile ? 20 : 0 }]}
+            style={[contactsStyles.detailEditBtn, { cursor: Platform.OS === 'web' ? 'pointer' : undefined, marginBottom: isMobile ? 20 : 0 }]}
             onPress={() => onEdit(contact)}
           >
             <Icon name="create-outline" size={16} color={colors.navy} />
@@ -813,49 +813,26 @@ const ContactCard = ({ contact, onPress, onDeleteRequest, selected }: {
   const isMobile = width < 640;
   const personName = contact.personName ?? 'Unknown';
 
-  const cardStyle: any = [
-    contactsStyles.contactCard,
-    selected && { borderWidth: 2, borderColor: colors.amber, backgroundColor: 'rgba(245,159,10,0.03)' },
-  ];
-  
-  if (Platform.OS === 'web') {
-    cardStyle.push({ cursor: 'pointer' });
-  }
-  
-  if (isMobile) {
-    cardStyle.push({ flexDirection: 'column', alignItems: 'center' });
-  }
-
-  const avatarStyle: any = [
-    contactsStyles.contactAvatar,
-    { backgroundColor: getAvatarColor(personName) },
-  ];
-  
-  if (isMobile) {
-    avatarStyle.push({ marginBottom: 12 });
-  }
-
-  const bodyStyle: any = [contactsStyles.contactBody];
-  if (isMobile) {
-    bodyStyle.push({ alignItems: 'center', paddingHorizontal: 8 });
-  }
-
-  const rightStyle: any = [contactsStyles.contactRight];
-  if (isMobile) {
-    rightStyle.push({ flexDirection: 'row', justifyContent: 'center', gap: 12, marginTop: 12, width: '100%' });
-  }
-
   return (
     <TouchableOpacity
-      style={cardStyle}
+      style={[
+        contactsStyles.contactCard,
+        Platform.OS === 'web' && { cursor: 'pointer' },
+        selected && { borderWidth: 2, borderColor: colors.amber, backgroundColor: 'rgba(245,159,10,0.03)' },
+        isMobile && { flexDirection: 'column', alignItems: 'center', textAlign: 'center' as any },
+      ]}
       activeOpacity={0.78}
       onPress={() => onPress(contact)}
     >
-      <View style={avatarStyle}>
+      <View style={[
+        contactsStyles.contactAvatar,
+        { backgroundColor: getAvatarColor(personName) },
+        isMobile && { marginBottom: 12 }
+      ]}>
         <Text style={contactsStyles.contactAvatarText}>{getInitials(personName)}</Text>
       </View>
 
-      <View style={bodyStyle}>
+      <View style={[contactsStyles.contactBody, isMobile && { alignItems: 'center', paddingHorizontal: 8 }]}>
         <Text style={[contactsStyles.contactName, { textAlign: isMobile ? 'center' : 'left' }]} numberOfLines={1}>{personName}</Text>
         <Text style={[contactsStyles.contactRole, { textAlign: isMobile ? 'center' : 'left' }]} numberOfLines={1}>{contact.designation ?? '—'}</Text>
         <Text style={[contactsStyles.contactCompany, { textAlign: isMobile ? 'center' : 'left' }]} numberOfLines={1}>{contact.companyName ?? '—'}</Text>
@@ -873,7 +850,7 @@ const ContactCard = ({ contact, onPress, onDeleteRequest, selected }: {
         )}
       </View>
 
-      <View style={rightStyle}>
+      <View style={[contactsStyles.contactRight, isMobile && { flexDirection: 'row', justifyContent: 'center', gap: 12, marginTop: 12, width: '100%' }]}>
         <Text style={contactsStyles.contactDate}>{formatDate(contact.createdAtUtc)}</Text>
         <TouchableOpacity
           style={[contactsStyles.contactMore, Platform.OS === 'web' && { cursor: 'pointer' }]}
@@ -898,23 +875,18 @@ const SearchInput = React.memo(({ value, onChange }: { value: string; onChange: 
     }
   }, []);
 
-  const inputStyle: any = [contactsStyles.searchInput, { 
-    paddingLeft: isMobile ? 38 : 44, 
-    paddingVertical: isMobile ? 8 : 10, 
-    fontSize: isMobile ? 13 : 14,
-  }];
-  
-  if (Platform.OS === 'web') {
-    inputStyle.push({ outlineStyle: 'none' });
-  }
-
   return (
     <View style={{ flex: 1, position: 'relative' }}>
       <Icon name="search-outline" size={isMobile ? 14 : 15} color={colors.muted}
         style={{ position: 'absolute', left: isMobile ? 12 : 14, top: isMobile ? 9 : 11, zIndex: 1 }} />
       <TextInput
         ref={inputRef}
-        style={inputStyle}
+        style={[contactsStyles.searchInput, { 
+          paddingLeft: isMobile ? 38 : 44, 
+          paddingVertical: isMobile ? 8 : 10, 
+          fontSize: isMobile ? 13 : 14,
+          ...(Platform.OS === 'web' && { outlineStyle: 'none' })
+        }]}
         placeholder="Search name, company, email…"
         placeholderTextColor={colors.inputPlaceholder}
         value={value}
@@ -959,7 +931,7 @@ export default function ContactsScreen() {
   const { contacts, loading, error, fetchContacts, fetchContact, removeContact, editContact: updateContactHook, total } = useContact(1, 50);
 
   // Responsive columns
-  const { columns, gap, paddingHorizontal } = getResponsiveConfig(screenWidth);
+  const { columns, gap, paddingHorizontal, cardWidth } = getResponsiveConfig(screenWidth);
   const CONTACTS_PER_PAGE = columns * 3; // 3 rows per page
 
   // Check admin role
@@ -1042,6 +1014,7 @@ export default function ContactsScreen() {
     if (!editContact) return;
     setSaving(true);
     try {
+      // The updateContactHook expects the form data that includes the new fields
       await updateContactHook(editContact.id, form);
       await fetchContacts();
       setEditVisible(false);
@@ -1093,9 +1066,6 @@ export default function ContactsScreen() {
 
   const isMobile = screenWidth < 640;
   const isTablet = screenWidth >= 640 && screenWidth < 1024;
-  
-  // Calculate card width based on columns
-  const cardWidth = `calc(${100 / columns}% - ${gap}px + ${gap / columns}px)`;
 
   const ContactsContent = () => {
     if (profileLoading) {
@@ -1269,6 +1239,7 @@ export default function ContactsScreen() {
                         backgroundColor: currentPage === 1 ? colors.border : colors.amber,
                         opacity: currentPage === 1 ? 0.5 : 1,
                       },
+                      currentPage === 1 && { cursor: Platform.OS === 'web' ? 'default' : undefined },
                     ]}
                   >
                     <Icon name="chevron-back-outline" size={isMobile ? 14 : 16} color={currentPage === 1 ? colors.muted : colors.navy} />
@@ -1312,6 +1283,7 @@ export default function ContactsScreen() {
                         backgroundColor: currentPage === totalPages ? colors.border : colors.amber,
                         opacity: currentPage === totalPages ? 0.5 : 1,
                       },
+                      currentPage === totalPages && { cursor: Platform.OS === 'web' ? 'default' : undefined },
                     ]}
                   >
                     <Text style={{
