@@ -15,10 +15,14 @@ import {
   Image,
   Modal,
   Linking,
+  Platform,
+  useWindowDimensions,
+  TextStyle,
+  ViewStyle,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useContact } from '@/hooks/useContact';
-import { router, useFocusEffect } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { exportContactsWeb } from '@/services/contact';
 import { SidebarLayout } from './sidebar';
 import { useProfile } from '@/hooks/useProfile';
@@ -42,6 +46,15 @@ const getAvatarColor = (name: string) => {
   return palette[Math.abs(hash) % palette.length];
 };
 
+// ─── Responsive Utilities ────────────────────────────────────────────────────
+const getResponsiveConfig = (width: number) => {
+  if (width < 640) return { columns: 1, gap: 12, paddingHorizontal: 16 };
+  if (width < 768) return { columns: 2, gap: 12, paddingHorizontal: 16 };
+  if (width < 1024) return { columns: 2, gap: 14, paddingHorizontal: 24 };
+  if (width < 1280) return { columns: 3, gap: 14, paddingHorizontal: 24 };
+  return { columns: 3, gap: 14, paddingHorizontal: 32 };
+};
+
 // ─── Toast ────────────────────────────────────────────────────────────────────
 type ToastType = 'success' | 'error' | 'info';
 
@@ -55,21 +68,42 @@ const useToast = () => {
 };
 
 const Toast = ({ msg, type }: { msg: string; type: ToastType }) => {
-  const bg = type === 'success' ? '#16a34a' : type === 'error' ? colors.error : colors.navy;
+  const { width } = useWindowDimensions();
+  const isMobile = width < 640;
+  
+  const toastStyle: ViewStyle = {
+    position: Platform.OS === 'web' ? ('fixed' as any) : 'absolute',
+    bottom: isMobile ? 20 : 28,
+    left: isMobile ? 20 : undefined,
+    right: isMobile ? 20 : 28,
+    zIndex: 9999,
+    backgroundColor: type === 'success' ? '#16a34a' : type === 'error' ? colors.error : colors.navy,
+    borderRadius: 12,
+    paddingHorizontal: isMobile ? 16 : 20,
+    paddingVertical: isMobile ? 12 : 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.22,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
+  };
+  
+  if (isMobile) {
+    (toastStyle as any).marginHorizontal = 'auto';
+    (toastStyle as any).maxWidth = '90%';
+  }
+  
   return (
-    <View style={{
-      position: 'fixed' as any, bottom: 28, right: 28, zIndex: 9999,
-      backgroundColor: bg, borderRadius: 12,
-      paddingHorizontal: 20, paddingVertical: 14,
-      flexDirection: 'row', alignItems: 'center', gap: 10,
-      shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 20, shadowOffset: { width: 0, height: 4 },
-      minWidth: 240,
-    }}>
+    <View style={toastStyle}>
       <Icon
         name={type === 'success' ? 'checkmark-circle' : type === 'error' ? 'alert-circle' : 'information-circle'}
-        size={18} color="#fff"
+        size={isMobile ? 16 : 18}
+        color="#fff"
       />
-      <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600', flex: 1 }}>{msg}</Text>
+      <Text style={{ color: '#fff', fontSize: isMobile ? 13 : 14, fontWeight: '600', flex: 1 }}>{msg}</Text>
     </View>
   );
 };
@@ -80,28 +114,39 @@ const ConfirmDialog = ({ visible, title, message, confirmLabel = 'Confirm', dang
   confirmLabel?: string; danger?: boolean;
   onConfirm: () => void; onCancel: () => void;
 }) => {
+  const { width } = useWindowDimensions();
+  const isMobile = width < 640;
+  
   if (!visible) return null;
   return (
     <Modal visible animationType="fade" transparent onRequestClose={onCancel}>
-      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: isMobile ? 16 : 0 }}>
         <View style={{
-          backgroundColor: '#fff', borderRadius: 16, padding: 28, width: 380,
-          shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 32, shadowOffset: { width: 0, height: 8 },
+          backgroundColor: '#fff',
+          borderRadius: 16,
+          padding: isMobile ? 20 : 28,
+          width: isMobile ? '100%' : 380,
+          maxWidth: 400,
+          shadowColor: '#000',
+          shadowOpacity: 0.2,
+          shadowRadius: 32,
+          shadowOffset: { width: 0, height: 8 },
+          elevation: 5,
         }}>
-          <Text style={{ fontSize: 17, fontWeight: '800', color: colors.text, marginBottom: 8 }}>{title}</Text>
-          <Text style={{ fontSize: 14, color: colors.muted, lineHeight: 22, marginBottom: 24 }}>{message}</Text>
+          <Text style={{ fontSize: isMobile ? 16 : 17, fontWeight: '800', color: colors.text, marginBottom: 8 }}>{title}</Text>
+          <Text style={{ fontSize: isMobile ? 13 : 14, color: colors.muted, lineHeight: 22, marginBottom: 24 }}>{message}</Text>
           <View style={{ flexDirection: 'row', gap: 10, justifyContent: 'flex-end' }}>
             <TouchableOpacity
               onPress={onCancel}
-              style={{ paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: colors.border, cursor: 'pointer' } as any}
+              style={{ paddingHorizontal: isMobile ? 16 : 20, paddingVertical: isMobile ? 8 : 10, borderRadius: 10, borderWidth: 1.5, borderColor: colors.border }}
             >
-              <Text style={{ fontSize: 13, fontWeight: '700', color: colors.muted }}>Cancel</Text>
+              <Text style={{ fontSize: isMobile ? 12 : 13, fontWeight: '700', color: colors.muted }}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={onConfirm}
-              style={{ paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: danger ? colors.error : colors.amber, cursor: 'pointer' } as any}
+              style={{ paddingHorizontal: isMobile ? 16 : 20, paddingVertical: isMobile ? 8 : 10, borderRadius: 10, backgroundColor: danger ? colors.error : colors.amber }}
             >
-              <Text style={{ fontSize: 13, fontWeight: '700', color: '#fff' }}>{confirmLabel}</Text>
+              <Text style={{ fontSize: isMobile ? 12 : 13, fontWeight: '700', color: '#fff' }}>{confirmLabel}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -135,6 +180,9 @@ const ImageViewer = ({ visible, images, currentIndex, label, onClose, onNext, on
   const [rotate, setRotate] = useState(0);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const dragRef = useRef({ active: false, mx: 0, my: 0, ox: 0, oy: 0 });
+  const { width, height } = useWindowDimensions();
+  const isMobile = width < 640;
+  const imageSize = isMobile ? { width: width - 40, height: height - 150 } : { width: 820, height: 520 };
 
   useEffect(() => {
     if (visible) { setScale(1); setRotate(0); setOffset({ x: 0, y: 0 }); }
@@ -152,16 +200,18 @@ const ImageViewer = ({ visible, images, currentIndex, label, onClose, onNext, on
   const reset = () => { setScale(1); setRotate(0); setOffset({ x: 0, y: 0 }); };
 
   const onWheel = (e: any) => {
+    if (Platform.OS !== 'web') return;
     e.preventDefault?.();
     const delta = e.deltaY < 0 ? 0.15 : -0.15;
     setScale((s) => Math.min(5, Math.max(0.25, +(s + delta).toFixed(2))));
   };
 
   const onMouseDown = (e: any) => {
+    if (Platform.OS !== 'web') return;
     dragRef.current = { active: true, mx: e.clientX, my: e.clientY, ox: offset.x, oy: offset.y };
   };
   const onMouseMove = (e: any) => {
-    if (!dragRef.current.active) return;
+    if (!dragRef.current.active || Platform.OS !== 'web') return;
     setOffset({
       x: dragRef.current.ox + (e.clientX - dragRef.current.mx),
       y: dragRef.current.oy + (e.clientY - dragRef.current.my),
@@ -174,54 +224,72 @@ const ImageViewer = ({ visible, images, currentIndex, label, onClose, onNext, on
       key={title}
       onPress={action}
       style={{
-        width: 36, height: 36, borderRadius: 9,
+        width: isMobile ? 32 : 36,
+        height: isMobile ? 32 : 36,
+        borderRadius: 8,
         backgroundColor: 'rgba(255,255,255,0.13)',
-        justifyContent: 'center', alignItems: 'center',
-        cursor: 'pointer',
-      } as any}
+        justifyContent: 'center',
+        alignItems: 'center',
+      }}
     >
-      <Icon name={icon} size={17} color="rgba(255,255,255,0.88)" />
+      <Icon name={icon} size={isMobile ? 15 : 17} color="rgba(255,255,255,0.88)" />
     </TouchableOpacity>
   );
 
   const hasPrev = currentIndex > 0 && images[currentIndex - 1]?.uri;
   const hasNext = currentIndex < images.length - 1 && images[currentIndex + 1]?.uri;
 
+  const imageContainerStyle: ViewStyle = {
+    transform: [
+      { translateX: offset.x },
+      { translateY: offset.y },
+      { scale },
+      { rotate: `${rotate}deg` as any },
+    ],
+  };
+  
+  if (Platform.OS === 'web') {
+    (imageContainerStyle as any).cursor = dragRef.current.active ? 'grabbing' : 'grab';
+    (imageContainerStyle as any).userSelect = 'none';
+  }
+
   return (
     <Modal visible animationType="fade" transparent onRequestClose={onClose}>
-      <View
-        style={{ flex: 1, backgroundColor: 'rgba(5,5,10,0.97)', justifyContent: 'center', alignItems: 'center' }}
-        // @ts-ignore - Mouse events for web platform
-        onMouseMove={onMouseMove}
-        onMouseUp={onMouseUp}
-        onMouseLeave={onMouseUp}
-      >
+      <View style={{ flex: 1, backgroundColor: 'rgba(5,5,10,0.97)', justifyContent: 'center', alignItems: 'center' }}>
         {/* Top bar */}
         <View style={{
-          position: 'absolute' as any, top: 0, left: 0, right: 0, zIndex: 10,
-          flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-          paddingHorizontal: 24, paddingVertical: 14,
+          position: 'absolute' as any,
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 10,
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          paddingHorizontal: isMobile ? 12 : 24,
+          paddingVertical: isMobile ? 10 : 14,
           backgroundColor: 'rgba(0,0,0,0.55)',
-          backdropFilter: 'blur(12px)',
-        } as any}>
-          <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 14, fontWeight: '700', letterSpacing: 0.3 }}>
+        }}>
+          <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: isMobile ? 11 : 14, fontWeight: '700', letterSpacing: 0.3 }}>
             {label} · {currentIndex + 1}/{images.length}
           </Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, marginRight: 6 }}>
-              {Math.round(scale * 100)}% · {((rotate % 360) + 360) % 360}°
-            </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: isMobile ? 4 : 6 }}>
+            {!isMobile && (
+              <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, marginRight: 6 }}>
+                {Math.round(scale * 100)}% · {((rotate % 360) + 360) % 360}°
+              </Text>
+            )}
             {toolBtn('remove-outline', zoomOut, 'Zoom Out')}
             {toolBtn('add-outline', zoomIn, 'Zoom In')}
             {toolBtn('arrow-undo-outline', rotateCCW, 'Rotate Left')}
             {toolBtn('arrow-redo-outline', rotateCW, 'Rotate Right')}
-            {toolBtn('scan-outline', reset, 'Reset')}
-            <View style={{ width: 1, height: 24, backgroundColor: 'rgba(255,255,255,0.12)', marginHorizontal: 4 }} />
+            {!isMobile && toolBtn('scan-outline', reset, 'Reset')}
+            <View style={{ width: 1, height: isMobile ? 20 : 24, backgroundColor: 'rgba(255,255,255,0.12)', marginHorizontal: isMobile ? 2 : 4 }} />
             <TouchableOpacity
               onPress={onClose}
-              style={{ width: 36, height: 36, borderRadius: 9, backgroundColor: 'rgba(239,68,68,0.18)', justifyContent: 'center', alignItems: 'center', cursor: 'pointer' } as any}
+              style={{ width: isMobile ? 32 : 36, height: isMobile ? 32 : 36, borderRadius: 8, backgroundColor: 'rgba(239,68,68,0.18)', justifyContent: 'center', alignItems: 'center' }}
             >
-              <Icon name="close" size={18} color={colors.error} />
+              <Icon name="close" size={isMobile ? 16 : 18} color={colors.error} />
             </TouchableOpacity>
           </View>
         </View>
@@ -231,12 +299,20 @@ const ImageViewer = ({ visible, images, currentIndex, label, onClose, onNext, on
           <TouchableOpacity
             onPress={onPrev}
             style={{
-              position: 'absolute' as any, left: 24, top: '50%', transform: [{ translateY: -25 }],
-              width: 50, height: 50, borderRadius: 25, backgroundColor: 'rgba(0,0,0,0.6)',
-              justifyContent: 'center', alignItems: 'center', zIndex: 10, cursor: 'pointer',
-            } as any}
+              position: 'absolute' as any,
+              left: isMobile ? 12 : 24,
+              top: '50%',
+              transform: [{ translateY: -25 }],
+              width: isMobile ? 40 : 50,
+              height: isMobile ? 40 : 50,
+              borderRadius: isMobile ? 20 : 25,
+              backgroundColor: 'rgba(0,0,0,0.6)',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 10,
+            }}
           >
-            <Icon name="chevron-back" size={28} color="#fff" />
+            <Icon name="chevron-back" size={isMobile ? 24 : 28} color="#fff" />
           </TouchableOpacity>
         )}
 
@@ -245,49 +321,52 @@ const ImageViewer = ({ visible, images, currentIndex, label, onClose, onNext, on
           <TouchableOpacity
             onPress={onNext}
             style={{
-              position: 'absolute' as any, right: 24, top: '50%', transform: [{ translateY: -25 }],
-              width: 50, height: 50, borderRadius: 25, backgroundColor: 'rgba(0,0,0,0.6)',
-              justifyContent: 'center', alignItems: 'center', zIndex: 10, cursor: 'pointer',
-            } as any}
+              position: 'absolute' as any,
+              right: isMobile ? 12 : 24,
+              top: '50%',
+              transform: [{ translateY: -25 }],
+              width: isMobile ? 40 : 50,
+              height: isMobile ? 40 : 50,
+              borderRadius: isMobile ? 20 : 25,
+              backgroundColor: 'rgba(0,0,0,0.6)',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 10,
+            }}
           >
-            <Icon name="chevron-forward" size={28} color="#fff" />
+            <Icon name="chevron-forward" size={isMobile ? 24 : 28} color="#fff" />
           </TouchableOpacity>
         )}
 
         {/* Image area */}
         <View
-          // @ts-ignore - Mouse events for web platform
-          onMouseDown={onMouseDown}
-          onWheel={onWheel}
-          style={{
-            transform: [
-              { translateX: offset.x }, { translateY: offset.y },
-              { scale }, { rotate: `${rotate}deg` as any },
-            ],
-            cursor: dragRef.current.active ? 'grabbing' : 'grab',
-            userSelect: 'none',
-          } as any}
+          onMouseDown={Platform.OS === 'web' ? onMouseDown : undefined}
+          onMouseMove={Platform.OS === 'web' ? onMouseMove : undefined}
+          onMouseUp={Platform.OS === 'web' ? onMouseUp : undefined}
+          onMouseLeave={Platform.OS === 'web' ? onMouseUp : undefined}
+          onWheel={Platform.OS === 'web' ? onWheel : undefined}
+          style={imageContainerStyle}
         >
           {uri ? (
             <Image
               source={{ uri }}
-              style={{ width: 820, height: 520, borderRadius: 6 }}
+              style={[imageSize, { borderRadius: 6 }]}
               resizeMode="contain"
-              // @ts-ignore - draggable for web platform
-              draggable={false}
             />
           ) : (
-            <View style={{ alignItems: 'center', gap: 14 }}>
-              <Icon name="image-outline" size={60} color="rgba(255,255,255,0.2)" />
-              <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: 14 }}>No image available</Text>
+            <View style={[imageSize, { alignItems: 'center', justifyContent: 'center', gap: 14 }]}>
+              <Icon name="image-outline" size={isMobile ? 40 : 60} color="rgba(255,255,255,0.2)" />
+              <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: isMobile ? 12 : 14 }}>No image available</Text>
             </View>
           )}
         </View>
 
         {/* Hint */}
-        <Text style={{ position: 'absolute' as any, bottom: 18, color: 'rgba(255,255,255,0.2)', fontSize: 11 } as any}>
-          Scroll to zoom · Drag to pan · Toolbar to rotate · Use arrows to navigate
-        </Text>
+        {!isMobile && (
+          <Text style={{ position: 'absolute' as any, bottom: 18, color: 'rgba(255,255,255,0.2)', fontSize: 11 }}>
+            Scroll to zoom · Drag to pan · Toolbar to rotate · Use arrows to navigate
+          </Text>
+        )}
       </View>
     </Modal>
   );
@@ -296,21 +375,28 @@ const ImageViewer = ({ visible, images, currentIndex, label, onClose, onNext, on
 // ─── Edit Field ───────────────────────────────────────────────────────────────
 const EditField = React.memo(({ label, value, onChange, keyboardType }: {
   label: string; value: string; onChange: (v: string) => void; keyboardType?: any;
-}) => (
-  <View style={contactsStyles.editField}>
-    <Text style={contactsStyles.editFieldLabel}>{label}</Text>
-    <TextInput
-      style={[contactsStyles.editFieldInput, { outlineStyle: 'none' } as any]}
-      value={value}
-      onChangeText={onChange}
-      placeholder={`Enter ${label.toLowerCase()}…`}
-      placeholderTextColor={colors.inputPlaceholder}
-      keyboardType={keyboardType ?? 'default'}
-      autoCorrect={false}
-      autoCapitalize="none"
-    />
-  </View>
-));
+}) => {
+  const inputStyle: TextStyle[] = [contactsStyles.editFieldInput];
+  if (Platform.OS === 'web') {
+    (inputStyle as any).push({ outlineStyle: 'none' } as any);
+  }
+  
+  return (
+    <View style={contactsStyles.editField}>
+      <Text style={contactsStyles.editFieldLabel}>{label}</Text>
+      <TextInput
+        style={inputStyle}
+        value={value}
+        onChangeText={onChange}
+        placeholder={`Enter ${label.toLowerCase()}…`}
+        placeholderTextColor={colors.inputPlaceholder}
+        keyboardType={keyboardType ?? 'default'}
+        autoCorrect={false}
+        autoCapitalize="none"
+      />
+    </View>
+  );
+});
 
 // ─── Edit Dialog ──────────────────────────────────────────────────────────────
 type EditForm = {
@@ -323,6 +409,10 @@ const EditDialog = ({ visible, contact, onClose, onSave, saving }: {
   visible: boolean; contact: ContactDetail | null;
   onClose: () => void; onSave: (form: EditForm) => void; saving: boolean;
 }) => {
+  const { width } = useWindowDimensions();
+  const isMobile = width < 640;
+  const isTablet = width >= 640 && width < 1024;
+  
   const blank: EditForm = {
     personName: '', designation: '', companyName: '', subCompanyName: '',
     branchName: '', phoneNumber1: '', phoneNumber2: '', phoneNumber3: '',
@@ -353,36 +443,53 @@ const EditDialog = ({ visible, contact, onClose, onSave, saving }: {
     setForm((prev) => ({ ...prev, [key]: v })), []);
 
   const Row2 = ({ children }: { children: React.ReactNode }) => (
-    <View style={{ flexDirection: 'row', gap: 14 }}>{children}</View>
+    <View style={{ flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 10 : 14 }}>
+      {children}
+    </View>
   );
+
+  const dialogStyle: ViewStyle = {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    width: isMobile ? '100%' : isTablet ? 540 : 620,
+    maxWidth: '100%',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.22,
+    shadowRadius: 40,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 5,
+  };
+  
+  (dialogStyle as any).maxHeight = '88vh';
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
-        <View style={{
-          backgroundColor: '#fff', borderRadius: 20, width: 620,
-          maxHeight: '88vh' as any, overflow: 'hidden' as any,
-          shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 40, shadowOffset: { width: 0, height: 10 },
-        }}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: isMobile ? 16 : 0 }}>
+        <View style={dialogStyle}>
           {/* Header */}
           <View style={{
-            flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-            paddingHorizontal: 28, paddingVertical: 20,
-            borderBottomWidth: 1, borderBottomColor: colors.border,
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            paddingHorizontal: isMobile ? 20 : 28,
+            paddingVertical: isMobile ? 16 : 20,
+            borderBottomWidth: 1,
+            borderBottomColor: colors.border,
           }}>
             <View>
-              <Text style={{ fontSize: 18, fontWeight: '800', color: colors.text }}>Edit Contact</Text>
-              <Text style={{ fontSize: 12, color: colors.muted, marginTop: 1 }}>{contact?.personName}</Text>
+              <Text style={{ fontSize: isMobile ? 16 : 18, fontWeight: '800', color: colors.text }}>Edit Contact</Text>
+              <Text style={{ fontSize: isMobile ? 11 : 12, color: colors.muted, marginTop: 1 }}>{contact?.personName}</Text>
             </View>
             <TouchableOpacity
               onPress={onClose}
-              style={{ width: 34, height: 34, borderRadius: 9, backgroundColor: colors.phoneBg, justifyContent: 'center', alignItems: 'center', cursor: 'pointer' } as any}
+              style={{ width: isMobile ? 30 : 34, height: isMobile ? 30 : 34, borderRadius: 8, backgroundColor: colors.phoneBg, justifyContent: 'center', alignItems: 'center' }}
             >
-              <Icon name="close" size={17} color={colors.muted} />
+              <Icon name="close" size={isMobile ? 15 : 17} color={colors.muted} />
             </TouchableOpacity>
           </View>
 
-          <ScrollView contentContainerStyle={{ padding: 28, paddingTop: 20 }}>
+          <ScrollView contentContainerStyle={{ padding: isMobile ? 20 : 28, paddingTop: 20 }}>
             <Text style={contactsStyles.editSectionHeading}>Personal</Text>
             <Row2>
               <View style={{ flex: 1 }}><EditField label="Full Name"   value={form.personName}  onChange={f('personName')} /></View>
@@ -420,23 +527,23 @@ const EditDialog = ({ visible, contact, onClose, onSave, saving }: {
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 24 }}>
               <TouchableOpacity
                 onPress={onClose}
-                style={{ flex: 1, paddingVertical: 13, borderRadius: 11, borderWidth: 1.5, borderColor: colors.border, alignItems: 'center', cursor: 'pointer' } as any}
+                style={{ flex: 1, paddingVertical: isMobile ? 11 : 13, borderRadius: 11, borderWidth: 1.5, borderColor: colors.border, alignItems: 'center' }}
               >
-                <Text style={{ fontSize: 14, fontWeight: '700', color: colors.muted }}>Cancel</Text>
+                <Text style={{ fontSize: isMobile ? 13 : 14, fontWeight: '700', color: colors.muted }}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[{
-                  flex: 2, flexDirection: 'row', gap: 8, paddingVertical: 13, borderRadius: 11,
-                  backgroundColor: colors.amber, justifyContent: 'center', alignItems: 'center', cursor: 'pointer',
-                } as any, saving && { opacity: 0.65 }]}
+                  flex: 2, flexDirection: 'row', gap: 8, paddingVertical: isMobile ? 11 : 13, borderRadius: 11,
+                  backgroundColor: colors.amber, justifyContent: 'center', alignItems: 'center',
+                }, saving && { opacity: 0.65 }]}
                 onPress={() => onSave(form)}
                 disabled={saving}
               >
                 {saving
                   ? <ActivityIndicator size="small" color={colors.navy} />
                   : <>
-                      <Icon name="checkmark-circle-outline" size={17} color={colors.navy} />
-                      <Text style={{ fontSize: 14, fontWeight: '800', color: colors.navy }}>Save Changes</Text>
+                      <Icon name="checkmark-circle-outline" size={isMobile ? 15 : 17} color={colors.navy} />
+                      <Text style={{ fontSize: isMobile ? 13 : 14, fontWeight: '800', color: colors.navy }}>Save Changes</Text>
                     </>
                 }
               </TouchableOpacity>
@@ -455,6 +562,11 @@ const DetailPanel = ({ visible, contact, loading: loadingDetail, onClose, onEdit
   onDeleteRequest: (id: string | number, name: string) => void;
 }) => {
   const [viewingImage, setViewingImage] = useState<{ images: Array<{ uri: string | null; label: string }>; currentIndex: number } | null>(null);
+  const { width } = useWindowDimensions();
+  const isMobile = width < 640;
+  const isTablet = width >= 640 && width < 1024;
+  
+  const panelWidth = isMobile ? width : isTablet ? 380 : 400;
 
   const InfoRow = ({ icon, label, value, href }: { icon: string; label: string; value: string; href?: string }) => (
     <View style={contactsStyles.detailRow}>
@@ -465,7 +577,7 @@ const DetailPanel = ({ visible, contact, loading: loadingDetail, onClose, onEdit
         <Text style={contactsStyles.detailRowLabel}>{label}</Text>
         {href
           ? <TouchableOpacity onPress={() => Linking.openURL(href)}>
-              <Text style={[contactsStyles.detailRowValue, { color: colors.navy, textDecorationLine: 'underline', cursor: 'pointer' } as any]}>{value}</Text>
+              <Text style={[contactsStyles.detailRowValue, { color: colors.navy, textDecorationLine: 'underline' }]}>{value}</Text>
             </TouchableOpacity>
           : <Text style={contactsStyles.detailRowValue}>{value}</Text>
         }
@@ -481,14 +593,27 @@ const DetailPanel = ({ visible, contact, loading: loadingDetail, onClose, onEdit
   );
 
   const panelStyle: any = {
-    position: 'fixed', right: 0, top: 0, bottom: 0, width: 400,
+    position: Platform.OS === 'web' ? ('fixed' as any) : 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: panelWidth,
     backgroundColor: '#fff',
-    borderLeftWidth: 1, borderLeftColor: colors.border,
-    zIndex: 100, flexDirection: 'column',
-    shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 30, shadowOffset: { width: -4, height: 0 },
-    transform: [{ translateX: visible ? 0 : 420 }],
-    transition: 'transform 0.28s cubic-bezier(0.4,0,0.2,1)',
+    borderLeftWidth: 1,
+    borderLeftColor: colors.border,
+    zIndex: 100,
+    flexDirection: 'column',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 30,
+    shadowOffset: { width: -4, height: 0 },
+    elevation: 5,
+    transform: [{ translateX: visible ? 0 : panelWidth }],
   };
+  
+  if (Platform.OS === 'web') {
+    panelStyle.transition = 'transform 0.28s cubic-bezier(0.4,0,0.2,1)';
+  }
 
   if (!visible) return null;
 
@@ -522,70 +647,83 @@ const DetailPanel = ({ visible, contact, loading: loadingDetail, onClose, onEdit
     setViewingImage({ images: cardImages, currentIndex: index });
   };
 
+  const cardBoxStyle: ViewStyle = contactsStyles.detailCardBox as ViewStyle;
+  if (isMobile) {
+    (cardBoxStyle as any).width = '48%';
+  }
+  if (Platform.OS === 'web') {
+    (cardBoxStyle as any).cursor = 'zoom-in';
+  }
+
   return (
     <View style={panelStyle}>
       {/* Top bar */}
       <View style={{
-        flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-        paddingHorizontal: 18, paddingVertical: 14,
-        borderBottomWidth: 1, borderBottomColor: colors.border,
-        backgroundColor: '#fff', flexShrink: 0,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: isMobile ? 14 : 18,
+        paddingVertical: isMobile ? 12 : 14,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.border,
+        backgroundColor: '#fff',
+        flexShrink: 0,
       }}>
         <TouchableOpacity
           onPress={onClose}
-          style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: colors.phoneBg, justifyContent: 'center', alignItems: 'center', cursor: 'pointer' } as any}
+          style={{ width: isMobile ? 28 : 32, height: isMobile ? 28 : 32, borderRadius: 8, backgroundColor: colors.phoneBg, justifyContent: 'center', alignItems: 'center' }}
         >
-          <Icon name="close" size={17} color={colors.muted} />
+          <Icon name="close" size={isMobile ? 15 : 17} color={colors.muted} />
         </TouchableOpacity>
-        <Text style={{ fontSize: 13, fontWeight: '700', color: colors.text }}>Contact Details</Text>
-        <View style={{ flexDirection: 'row', gap: 7 }}>
+        <Text style={{ fontSize: isMobile ? 12 : 13, fontWeight: '700', color: colors.text }}>Contact Details</Text>
+        <View style={{ flexDirection: 'row', gap: isMobile ? 5 : 7 }}>
           <TouchableOpacity
             onPress={() => onEdit(contact)}
-            style={{ width: 32, height: 32, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(245,159,10,0.3)', backgroundColor: 'rgba(245,159,10,0.08)', justifyContent: 'center', alignItems: 'center', cursor: 'pointer' } as any}
+            style={{ width: isMobile ? 28 : 32, height: isMobile ? 28 : 32, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(245,159,10,0.3)', backgroundColor: 'rgba(245,159,10,0.08)', justifyContent: 'center', alignItems: 'center' }}
           >
-            <Icon name="create-outline" size={15} color={colors.amber} />
+            <Icon name="create-outline" size={isMobile ? 13 : 15} color={colors.amber} />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => onDeleteRequest(contact.id, personName)}
-            style={{ width: 32, height: 32, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)', backgroundColor: 'rgba(239,68,68,0.08)', justifyContent: 'center', alignItems: 'center', cursor: 'pointer' } as any}
+            style={{ width: isMobile ? 28 : 32, height: isMobile ? 28 : 32, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)', backgroundColor: 'rgba(239,68,68,0.08)', justifyContent: 'center', alignItems: 'center' }}
           >
-            <Icon name="trash-outline" size={15} color={colors.error} />
+            <Icon name="trash-outline" size={isMobile ? 13 : 15} color={colors.error} />
           </TouchableOpacity>
         </View>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
         {/* Hero */}
-        <View style={[contactsStyles.detailHero, { paddingVertical: 22 }]}>
+        <View style={[contactsStyles.detailHero, { paddingVertical: isMobile ? 18 : 22 }]}>
           <View style={contactsStyles.detailHeroGlow} />
-          <View style={[contactsStyles.detailAvatar, { backgroundColor: avatarBg }]}>
-            <Text style={contactsStyles.detailAvatarText}>{getInitials(personName)}</Text>
+          <View style={[contactsStyles.detailAvatar, { backgroundColor: avatarBg, width: isMobile ? 80 : 100, height: isMobile ? 80 : 100, borderRadius: isMobile ? 40 : 50 }]}>
+            <Text style={[contactsStyles.detailAvatarText, { fontSize: isMobile ? 28 : 36 }]}>{getInitials(personName)}</Text>
           </View>
-          <Text style={contactsStyles.detailName}>{personName}</Text>
-          <Text style={contactsStyles.detailDesignation}>{contact.designation ?? '—'}</Text>
-          {contact.companyName && <Text style={contactsStyles.detailCompany}>{contact.companyName}</Text>}
+          <Text style={[contactsStyles.detailName, { fontSize: isMobile ? 20 : 24 }]}>{personName}</Text>
+          <Text style={[contactsStyles.detailDesignation, { fontSize: isMobile ? 13 : 14 }]}>{contact.designation ?? '—'}</Text>
+          {contact.companyName && <Text style={[contactsStyles.detailCompany, { fontSize: isMobile ? 13 : 14 }]}>{contact.companyName}</Text>}
         </View>
 
         {/* Card images */}
         {cardImages.length > 0 && (
-          <View style={[contactsStyles.detailCardsRow, { paddingHorizontal: 14, gap: 10 }]}>
+          <View style={[contactsStyles.detailCardsRow, { paddingHorizontal: isMobile ? 12 : 14, gap: isMobile ? 8 : 10 }]}>
             {cardImages.map((img, idx) => (
               <TouchableOpacity
                 key={idx}
-                style={[contactsStyles.detailCardBox, { cursor: 'zoom-in' } as any]}
+                style={[contactsStyles.detailCardBox, isMobile && { width: '48%' }]}
                 onPress={() => handleImageClick(idx)}
                 activeOpacity={0.85}
               >
                 {img.uri
-                  ? <Image source={{ uri: img.uri }} style={contactsStyles.detailCardImage} resizeMode="cover" />
-                  : <View style={contactsStyles.detailCardPlaceholder}>
-                      <Icon name="card-outline" size={22} color="rgba(255,255,255,0.3)" />
-                      <Text style={contactsStyles.detailCardPlaceholderText}>{img.label}</Text>
+                  ? <Image source={{ uri: img.uri }} style={[contactsStyles.detailCardImage, { height: isMobile ? 100 : 120 }]} resizeMode="cover" />
+                  : <View style={[contactsStyles.detailCardPlaceholder, { height: isMobile ? 100 : 120 }]}>
+                      <Icon name="card-outline" size={isMobile ? 18 : 22} color="rgba(255,255,255,0.3)" />
+                      <Text style={[contactsStyles.detailCardPlaceholderText, { fontSize: isMobile ? 10 : 12 }]}>{img.label}</Text>
                     </View>
                 }
                 <View style={contactsStyles.detailCardBadge}>
-                  <Icon name="eye-outline" size={9} color={colors.amberDark} />
-                  <Text style={contactsStyles.detailCardBadgeText}>{img.label}</Text>
+                  <Icon name="eye-outline" size={isMobile ? 8 : 9} color={colors.amberDark} />
+                  <Text style={[contactsStyles.detailCardBadgeText, { fontSize: isMobile ? 9 : 10 }]}>{img.label}</Text>
                 </View>
               </TouchableOpacity>
             ))}
@@ -593,7 +731,7 @@ const DetailPanel = ({ visible, contact, loading: loadingDetail, onClose, onEdit
         )}
 
         {/* Sections */}
-        <View style={[contactsStyles.detailBody, { paddingHorizontal: 14 }]}>
+        <View style={[contactsStyles.detailBody, { paddingHorizontal: isMobile ? 12 : 14 }]}>
           {phones.length > 0 && (
             <Section title="Phone Numbers">
               {phones.map((p, i) => (
@@ -629,10 +767,10 @@ const DetailPanel = ({ visible, contact, loading: loadingDetail, onClose, onEdit
           )}
           {services.length > 0 && (
             <Section title="Services">
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, paddingTop: 4 }}>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: isMobile ? 6 : 7, paddingTop: 4 }}>
                 {services.map((s, i) => (
-                  <View key={i} style={contactsStyles.detailServiceTag}>
-                    <Text style={contactsStyles.detailServiceText}>{s}</Text>
+                  <View key={i} style={[contactsStyles.detailServiceTag, { paddingHorizontal: isMobile ? 10 : 12, paddingVertical: isMobile ? 4 : 6 }]}>
+                    <Text style={[contactsStyles.detailServiceText, { fontSize: isMobile ? 11 : 12 }]}>{s}</Text>
                   </View>
                 ))}
               </View>
@@ -644,7 +782,7 @@ const DetailPanel = ({ visible, contact, loading: loadingDetail, onClose, onEdit
           </Section>
 
           <TouchableOpacity
-            style={[contactsStyles.detailEditBtn, { cursor: 'pointer' } as any]}
+            style={[contactsStyles.detailEditBtn, { marginBottom: isMobile ? 20 : 0 }]}
             onPress={() => onEdit(contact)}
           >
             <Icon name="create-outline" size={16} color={colors.navy} />
@@ -671,42 +809,74 @@ const ContactCard = ({ contact, onPress, onDeleteRequest, selected }: {
   contact: ContactDetail; onPress: (c: ContactDetail) => void;
   onDeleteRequest: (id: string | number, name: string) => void; selected?: boolean;
 }) => {
+  const { width } = useWindowDimensions();
+  const isMobile = width < 640;
   const personName = contact.personName ?? 'Unknown';
+
+  const cardStyle: any = [
+    contactsStyles.contactCard,
+    selected && { borderWidth: 2, borderColor: colors.amber, backgroundColor: 'rgba(245,159,10,0.03)' },
+  ];
+  
+  if (Platform.OS === 'web') {
+    cardStyle.push({ cursor: 'pointer' });
+  }
+  
+  if (isMobile) {
+    cardStyle.push({ flexDirection: 'column', alignItems: 'center' });
+  }
+
+  const avatarStyle: any = [
+    contactsStyles.contactAvatar,
+    { backgroundColor: getAvatarColor(personName) },
+  ];
+  
+  if (isMobile) {
+    avatarStyle.push({ marginBottom: 12 });
+  }
+
+  const bodyStyle: any = [contactsStyles.contactBody];
+  if (isMobile) {
+    bodyStyle.push({ alignItems: 'center', paddingHorizontal: 8 });
+  }
+
+  const rightStyle: any = [contactsStyles.contactRight];
+  if (isMobile) {
+    rightStyle.push({ flexDirection: 'row', justifyContent: 'center', gap: 12, marginTop: 12, width: '100%' });
+  }
 
   return (
     <TouchableOpacity
-      style={[
-        contactsStyles.contactCard,
-        { cursor: 'pointer' } as any,
-        selected && { borderWidth: 2, borderColor: colors.amber, backgroundColor: 'rgba(245,159,10,0.03)' },
-      ]}
+      style={cardStyle}
       activeOpacity={0.78}
       onPress={() => onPress(contact)}
     >
-      <View style={[contactsStyles.contactAvatar, { backgroundColor: getAvatarColor(personName) }]}>
+      <View style={avatarStyle}>
         <Text style={contactsStyles.contactAvatarText}>{getInitials(personName)}</Text>
       </View>
 
-      <View style={contactsStyles.contactBody}>
-        <Text style={contactsStyles.contactName} numberOfLines={1}>{personName}</Text>
-        <Text style={contactsStyles.contactRole}    numberOfLines={1}>{contact.designation ?? '—'}</Text>
-        <Text style={contactsStyles.contactCompany} numberOfLines={1}>{contact.companyName ?? '—'}</Text>
-        <View style={contactsStyles.contactDetails}>
-          <View style={contactsStyles.contactRow}>
-            <Icon name="mail-outline" size={10} color={colors.amberDark} />
-            <Text style={contactsStyles.contactRowText} numberOfLines={1}>{contact.email1 ?? contact.email2 ?? 'No email'}</Text>
+      <View style={bodyStyle}>
+        <Text style={[contactsStyles.contactName, { textAlign: isMobile ? 'center' : 'left' }]} numberOfLines={1}>{personName}</Text>
+        <Text style={[contactsStyles.contactRole, { textAlign: isMobile ? 'center' : 'left' }]} numberOfLines={1}>{contact.designation ?? '—'}</Text>
+        <Text style={[contactsStyles.contactCompany, { textAlign: isMobile ? 'center' : 'left' }]} numberOfLines={1}>{contact.companyName ?? '—'}</Text>
+        {!isMobile && (
+          <View style={contactsStyles.contactDetails}>
+            <View style={contactsStyles.contactRow}>
+              <Icon name="mail-outline" size={10} color={colors.amberDark} />
+              <Text style={contactsStyles.contactRowText} numberOfLines={1}>{contact.email1 ?? contact.email2 ?? 'No email'}</Text>
+            </View>
+            <View style={contactsStyles.contactRow}>
+              <Icon name="call-outline" size={10} color={colors.amberDark} />
+              <Text style={contactsStyles.contactRowText} numberOfLines={1}>{contact.phoneNumber1 ?? contact.phoneNumber2 ?? 'No phone'}</Text>
+            </View>
           </View>
-          <View style={contactsStyles.contactRow}>
-            <Icon name="call-outline" size={10} color={colors.amberDark} />
-            <Text style={contactsStyles.contactRowText} numberOfLines={1}>{contact.phoneNumber1 ?? contact.phoneNumber2 ?? 'No phone'}</Text>
-          </View>
-        </View>
+        )}
       </View>
 
-      <View style={contactsStyles.contactRight}>
+      <View style={rightStyle}>
         <Text style={contactsStyles.contactDate}>{formatDate(contact.createdAtUtc)}</Text>
         <TouchableOpacity
-          style={[contactsStyles.contactMore, { cursor: 'pointer' } as any]}
+          style={[contactsStyles.contactMore, Platform.OS === 'web' && { cursor: 'pointer' }]}
           onPress={(e) => { e.stopPropagation?.(); onDeleteRequest(contact.id, personName); }}
         >
           <Icon name="trash-outline" size={12} color={colors.error} />
@@ -719,39 +889,47 @@ const ContactCard = ({ contact, onPress, onDeleteRequest, selected }: {
 // ─── Search Input Component ─────────────────────────────────────────────────
 const SearchInput = React.memo(({ value, onChange }: { value: string; onChange: (text: string) => void }) => {
   const inputRef = useRef<any>(null);
+  const { width } = useWindowDimensions();
+  const isMobile = width < 640;
   
   useEffect(() => {
-    // Keep focus when component updates
-    if (inputRef.current && typeof inputRef.current.focus === 'function') {
+    if (inputRef.current && typeof inputRef.current.focus === 'function' && Platform.OS === 'web') {
       inputRef.current.focus();
     }
   }, []);
 
+  const inputStyle: any = [contactsStyles.searchInput, { 
+    paddingLeft: isMobile ? 38 : 44, 
+    paddingVertical: isMobile ? 8 : 10, 
+    fontSize: isMobile ? 13 : 14,
+  }];
+  
+  if (Platform.OS === 'web') {
+    inputStyle.push({ outlineStyle: 'none' });
+  }
+
   return (
     <View style={{ flex: 1, position: 'relative' }}>
-      <Icon name="search-outline" size={15} color={colors.muted}
-        style={{ position: 'absolute', left: 14, top: 11, zIndex: 1 }} />
+      <Icon name="search-outline" size={isMobile ? 14 : 15} color={colors.muted}
+        style={{ position: 'absolute', left: isMobile ? 12 : 14, top: isMobile ? 9 : 11, zIndex: 1 }} />
       <TextInput
         ref={inputRef}
-        style={[contactsStyles.searchInput, { paddingLeft: 44, paddingVertical: 10, fontSize: 13, outlineStyle: 'none' } as any]}
+        style={inputStyle}
         placeholder="Search name, company, email…"
         placeholderTextColor={colors.inputPlaceholder}
         value={value}
         onChangeText={onChange}
-        // @ts-ignore - web-specific props
-        autoFocus={true}
-        // @ts-ignore
-        autoCorrect="off"
-        // @ts-ignore
+        autoFocus={Platform.OS === 'web'}
+        autoCorrect={false}
         spellCheck={false}
         autoCapitalize="none"
       />
       {value.length > 0 && (
         <TouchableOpacity
           onPress={() => onChange('')}
-          style={{ position: 'absolute', right: 12, top: 10, cursor: 'pointer' } as any}
+          style={{ position: 'absolute', right: isMobile ? 10 : 12, top: isMobile ? 8 : 10 }}
         >
-          <Icon name="close-circle" size={17} color={colors.muted} />
+          <Icon name="close-circle" size={isMobile ? 15 : 17} color={colors.muted} />
         </TouchableOpacity>
       )}
     </View>
@@ -774,12 +952,15 @@ export default function ContactsScreen() {
   const [confirmDelete, setConfirmDelete] = useState<{ id: string | number; name: string } | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const { toast, show: showToast } = useToast();
+  const { width: screenWidth } = useWindowDimensions();
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const CONTACTS_PER_PAGE = 12;
-
   const { contacts, loading, error, fetchContacts, fetchContact, removeContact, editContact: updateContactHook, total } = useContact(1, 50);
+
+  // Responsive columns
+  const { columns, gap, paddingHorizontal } = getResponsiveConfig(screenWidth);
+  const CONTACTS_PER_PAGE = columns * 3; // 3 rows per page
 
   // Check admin role
   useEffect(() => {
@@ -910,6 +1091,12 @@ export default function ContactsScreen() {
   const getUserInitials = () => profile?.userName ? getInitials(profile.userName) : "U";
   const getUserAvatarColor = () => profile?.userName ? getAvatarColor(profile.userName) : colors.amber;
 
+  const isMobile = screenWidth < 640;
+  const isTablet = screenWidth >= 640 && screenWidth < 1024;
+  
+  // Calculate card width based on columns
+  const cardWidth = `calc(${100 / columns}% - ${gap}px + ${gap / columns}px)`;
+
   const ContactsContent = () => {
     if (profileLoading) {
       return (
@@ -928,38 +1115,46 @@ export default function ContactsScreen() {
           {/* Page header */}
           <View style={{
             backgroundColor: colors.navy,
-            paddingHorizontal: 32, paddingTop: 26, paddingBottom: 22,
-            flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+            paddingHorizontal: isMobile ? 20 : isTablet ? 24 : 32,
+            paddingTop: isMobile ? 20 : 26,
+            paddingBottom: isMobile ? 16 : 22,
+            flexDirection: isMobile ? 'column' : 'row',
+            justifyContent: 'space-between',
+            alignItems: isMobile ? 'flex-start' : 'center',
+            gap: isMobile ? 12 : 0,
           }}>
             <View>
-              <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' }}>
+              <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: isMobile ? 9 : 10, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' }}>
                 Your network
               </Text>
-              <Text style={{ color: '#fff', fontSize: 26, fontWeight: '800', marginTop: 3, letterSpacing: -0.5 }}>Contacts</Text>
+              <Text style={{ color: '#fff', fontSize: isMobile ? 22 : 26, fontWeight: '800', marginTop: 3, letterSpacing: -0.5 }}>Contacts</Text>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <View style={{
-                backgroundColor: 'rgba(245,159,10,0.12)', borderRadius: 20,
-                paddingHorizontal: 14, paddingVertical: 7,
-                borderWidth: 1, borderColor: 'rgba(245,159,10,0.2)',
+                backgroundColor: 'rgba(245,159,10,0.12)',
+                borderRadius: 20,
+                paddingHorizontal: isMobile ? 10 : 14,
+                paddingVertical: isMobile ? 5 : 7,
+                borderWidth: 1,
+                borderColor: 'rgba(245,159,10,0.2)',
               }}>
-                <Text style={{ color: colors.amber, fontSize: 12, fontWeight: '700' }}>{total} total</Text>
+                <Text style={{ color: colors.amber, fontSize: isMobile ? 11 : 12, fontWeight: '700' }}>{total} total</Text>
               </View>
               <TouchableOpacity
                 onPress={handleExport}
                 disabled={isExporting}
-                style={[contactsStyles.headerBtn, { cursor: 'pointer', opacity: isExporting ? 0.6 : 1 } as any]}
+                style={[contactsStyles.headerBtn, { opacity: isExporting ? 0.6 : 1, padding: isMobile ? 8 : 10 }]}
               >
                 {isExporting ? (
                   <ActivityIndicator size="small" color={colors.amber} />
                 ) : (
-                  <Icon name="download-outline" size={16} color={colors.amber} />
+                  <Icon name="download-outline" size={isMobile ? 14 : 16} color={colors.amber} />
                 )}
               </TouchableOpacity>
             </View>
           </View>
 
-          {/* Toolbar - Centered */}
+          {/* Toolbar */}
           <View style={{ width: '100%', alignItems: 'center', backgroundColor: '#fff' }}>
             <View style={{
               flexDirection: 'row',
@@ -967,8 +1162,8 @@ export default function ContactsScreen() {
               gap: 10,
               width: '100%',
               maxWidth: 1200,
-              paddingHorizontal: 32,
-              paddingVertical: 14,
+              paddingHorizontal: isMobile ? 16 : paddingHorizontal,
+              paddingVertical: isMobile ? 12 : 14,
               borderBottomWidth: 1,
               borderBottomColor: colors.border,
             }}>
@@ -978,15 +1173,15 @@ export default function ContactsScreen() {
 
           {/* Count row */}
           <View style={{ width: '100%', alignItems: 'center', backgroundColor: colors.phoneBg }}>
-            <View style={{ width: '100%', maxWidth: 1200, paddingHorizontal: 32 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 }}>
-                <Text style={contactsStyles.countText}>
+            <View style={{ width: '100%', maxWidth: 1200, paddingHorizontal: isMobile ? 16 : paddingHorizontal }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: isMobile ? 8 : 10 }}>
+                <Text style={[contactsStyles.countText, { fontSize: isMobile ? 12 : 13 }]}>
                   <Text style={contactsStyles.countStrong}>{filteredContacts.length}</Text> of {total} contacts
                   {searchQuery ? <Text style={{ color: colors.amberDark }}> · "{searchQuery}"</Text> : null}
                 </Text>
-                <TouchableOpacity style={contactsStyles.sortBtn}>
-                  <Icon name="swap-vertical-outline" size={11} color={colors.amberDark} />
-                  <Text style={contactsStyles.sortText}>Newest</Text>
+                <TouchableOpacity style={[contactsStyles.sortBtn, { paddingHorizontal: isMobile ? 8 : 12, paddingVertical: isMobile ? 5 : 6 }]}>
+                  <Icon name="swap-vertical-outline" size={isMobile ? 10 : 11} color={colors.amberDark} />
+                  <Text style={[contactsStyles.sortText, { fontSize: isMobile ? 11 : 12 }]}>Newest</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1001,57 +1196,52 @@ export default function ContactsScreen() {
           scrollEventThrottle={400}
         >
           <View style={{ width: '100%', alignItems: 'center' }}>
-            <View style={{ width: '100%', maxWidth: 1200, paddingHorizontal: 32, paddingTop: 4, paddingBottom: 40 }}>
+            <View style={{ width: '100%', maxWidth: 1200, paddingHorizontal: isMobile ? 16 : paddingHorizontal, paddingTop: 4, paddingBottom: isMobile ? 30 : 40 }}>
               {loading && !refreshing && contacts.length === 0 && (
-                <View style={{ padding: 60, alignItems: 'center' }}>
+                <View style={{ padding: isMobile ? 40 : 60, alignItems: 'center' }}>
                   <ActivityIndicator size="large" color={colors.amber} />
                   <Text style={{ color: colors.muted, marginTop: 14 }}>Loading contacts…</Text>
                 </View>
               )}
 
               {error && (
-                <View style={{ padding: 40, alignItems: 'center' }}>
-                  <Icon name="warning-outline" size={36} color={colors.error} />
+                <View style={{ padding: isMobile ? 30 : 40, alignItems: 'center' }}>
+                  <Icon name="warning-outline" size={isMobile ? 28 : 36} color={colors.error} />
                   <Text style={{ color: colors.error, marginTop: 10, marginBottom: 14 }}>{error}</Text>
-                  <TouchableOpacity onPress={() => fetchContacts(1)} style={{ paddingHorizontal: 20, paddingVertical: 10, backgroundColor: colors.amber, borderRadius: 10, cursor: 'pointer' } as any}>
+                  <TouchableOpacity onPress={() => fetchContacts(1)} style={{ paddingHorizontal: isMobile ? 16 : 20, paddingVertical: isMobile ? 8 : 10, backgroundColor: colors.amber, borderRadius: 10 }}>
                     <Text style={{ color: colors.navy, fontWeight: '700' }}>Retry</Text>
                   </TouchableOpacity>
                 </View>
               )}
 
               {!error && !loading && filteredContacts.length === 0 && (
-                <View style={{ padding: 60, alignItems: 'center' }}>
-                  <Icon name="people-outline" size={52} color={colors.muted} />
-                  <Text style={{ marginTop: 14, color: colors.muted, fontSize: 15 }}>
+                <View style={{ padding: isMobile ? 40 : 60, alignItems: 'center' }}>
+                  <Icon name="people-outline" size={isMobile ? 44 : 52} color={colors.muted} />
+                  <Text style={{ marginTop: 14, color: colors.muted, fontSize: isMobile ? 14 : 15 }}>
                     {searchQuery ? `No results for "${searchQuery}"` : 'No contacts yet.'}
                   </Text>
                   {searchQuery && (
-                    <TouchableOpacity onPress={() => setSearchQuery('')} style={{ marginTop: 12, paddingHorizontal: 18, paddingVertical: 9, backgroundColor: colors.amber, borderRadius: 9, cursor: 'pointer' } as any}>
-                      <Text style={{ color: colors.navy, fontWeight: '700', fontSize: 13 }}>Clear search</Text>
+                    <TouchableOpacity onPress={() => setSearchQuery('')} style={{ marginTop: 12, paddingHorizontal: isMobile ? 14 : 18, paddingVertical: isMobile ? 7 : 9, backgroundColor: colors.amber, borderRadius: 9 }}>
+                      <Text style={{ color: colors.navy, fontWeight: '700', fontSize: isMobile ? 12 : 13 }}>Clear search</Text>
                     </TouchableOpacity>
                   )}
                 </View>
               )}
 
-              {!error && currentContacts.length > 0 &&
-                Array.from({ length: Math.ceil(currentContacts.length / 3) }).map((_, row) => (
-                  <View key={row} style={{ flexDirection: 'row', gap: 14, marginBottom: 14 }}>
-                    {currentContacts.slice(row * 3, row * 3 + 3).map((c) => (
-                      <View key={c.id} style={{ flex: 1 }}>
-                        <ContactCard
-                          contact={c}
-                          onPress={handleContactPress}
-                          onDeleteRequest={handleDeleteRequest}
-                          selected={selectedId === c.id && detailVisible}
-                        />
-                      </View>
-                    ))}
-                    {Array.from({ length: 3 - currentContacts.slice(row * 3, row * 3 + 3).length }).map((_, i) => (
-                      <View key={i} style={{ flex: 1 }} />
-                    ))}
-                  </View>
-                ))
-              }
+              {!error && currentContacts.length > 0 && (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: gap }}>
+                  {currentContacts.map((c) => (
+                    <View key={c.id} style={{ width: cardWidth, marginBottom: gap }}>
+                      <ContactCard
+                        contact={c}
+                        onPress={handleContactPress}
+                        onDeleteRequest={handleDeleteRequest}
+                        selected={selectedId === c.id && detailVisible}
+                      />
+                    </View>
+                  ))}
+                </View>
+              )}
 
               {/* Pagination Controls */}
               {totalPages > 1 && (
@@ -1059,10 +1249,11 @@ export default function ContactsScreen() {
                   flexDirection: 'row',
                   justifyContent: 'center',
                   alignItems: 'center',
-                  gap: 16,
-                  marginTop: 24,
-                  marginBottom: 16,
-                  paddingVertical: 16,
+                  gap: isMobile ? 12 : 16,
+                  marginTop: isMobile ? 20 : 24,
+                  marginBottom: isMobile ? 12 : 16,
+                  paddingVertical: isMobile ? 12 : 16,
+                  flexWrap: 'wrap',
                 }}>
                   <TouchableOpacity
                     onPress={prevPage}
@@ -1071,20 +1262,18 @@ export default function ContactsScreen() {
                       {
                         flexDirection: 'row',
                         alignItems: 'center',
-                        gap: 8,
-                        paddingHorizontal: 16,
-                        paddingVertical: 8,
+                        gap: isMobile ? 6 : 8,
+                        paddingHorizontal: isMobile ? 12 : 16,
+                        paddingVertical: isMobile ? 6 : 8,
                         borderRadius: 10,
                         backgroundColor: currentPage === 1 ? colors.border : colors.amber,
-                        cursor: 'pointer',
                         opacity: currentPage === 1 ? 0.5 : 1,
-                      } as any,
-                      currentPage === 1 && { cursor: 'default' } as any,
+                      },
                     ]}
                   >
-                    <Icon name="chevron-back-outline" size={16} color={currentPage === 1 ? colors.muted : colors.navy} />
+                    <Icon name="chevron-back-outline" size={isMobile ? 14 : 16} color={currentPage === 1 ? colors.muted : colors.navy} />
                     <Text style={{
-                      fontSize: 13,
+                      fontSize: isMobile ? 12 : 13,
                       fontWeight: '600',
                       color: currentPage === 1 ? colors.muted : colors.navy,
                     }}>Previous</Text>
@@ -1095,13 +1284,13 @@ export default function ContactsScreen() {
                     alignItems: 'center',
                     gap: 8,
                     backgroundColor: colors.phoneBg,
-                    paddingHorizontal: 16,
-                    paddingVertical: 6,
+                    paddingHorizontal: isMobile ? 12 : 16,
+                    paddingVertical: isMobile ? 5 : 6,
                     borderRadius: 20,
                   }}>
-                    <Icon name="grid-outline" size={14} color={colors.amber} />
+                    <Icon name="grid-outline" size={isMobile ? 12 : 14} color={colors.amber} />
                     <Text style={{
-                      fontSize: 13,
+                      fontSize: isMobile ? 12 : 13,
                       color: colors.text,
                       fontWeight: '500',
                     }}>
@@ -1116,23 +1305,21 @@ export default function ContactsScreen() {
                       {
                         flexDirection: 'row',
                         alignItems: 'center',
-                        gap: 8,
-                        paddingHorizontal: 16,
-                        paddingVertical: 8,
+                        gap: isMobile ? 6 : 8,
+                        paddingHorizontal: isMobile ? 12 : 16,
+                        paddingVertical: isMobile ? 6 : 8,
                         borderRadius: 10,
                         backgroundColor: currentPage === totalPages ? colors.border : colors.amber,
-                        cursor: 'pointer',
                         opacity: currentPage === totalPages ? 0.5 : 1,
-                      } as any,
-                      currentPage === totalPages && { cursor: 'default' } as any,
+                      },
                     ]}
                   >
                     <Text style={{
-                      fontSize: 13,
+                      fontSize: isMobile ? 12 : 13,
                       fontWeight: '600',
                       color: currentPage === totalPages ? colors.muted : colors.navy,
                     }}>Next</Text>
-                    <Icon name="chevron-forward-outline" size={16} color={currentPage === totalPages ? colors.muted : colors.navy} />
+                    <Icon name="chevron-forward-outline" size={isMobile ? 14 : 16} color={currentPage === totalPages ? colors.muted : colors.navy} />
                   </TouchableOpacity>
                 </View>
               )}

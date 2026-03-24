@@ -1199,7 +1199,13 @@ export default function DashboardScreen() {
   };
   const handleSettingsPress = () => router.push("/settings");
   const handleUsersPress = () => router.push("/users");
-  const handleScannedPress = () => router.push("/contacts?filter=scanned");
+  const handleScannedPress = () => {
+      if (isDesktop) {
+      router.push("/contacts-web");
+    } else {
+      router.push("/contacts");
+    }
+  };
   const handleSharePress = async () => {
     const totalContacts = summary?.totalContactsCount ?? 0;
     const scansUsed = summary?.totalScansUsed ?? profile?.totalScansUsed ?? 0;
