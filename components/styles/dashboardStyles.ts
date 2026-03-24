@@ -670,4 +670,11 @@ desktopAvatarTextSmall: {
   fontWeight: "600",
   color: colors.white,
 },
+// In your dashboardStyles file, add or update:
+loadingContainer: {
+  flex: 1,
+  backgroundColor: colors.phoneBg,
+  justifyContent: "center",
+  alignItems: "center",
+},
 });

@@ -97,7 +97,16 @@ const handleLogout = () => {
   setShowLogoutModal(true);
 };
 
+  const [roles, setRoles] = useState<string[] | null>(null);
 
+
+  useEffect(() => {
+    const loadRoles = async () => {
+      const storedRoles = await getRoles();
+      setRoles(storedRoles);
+    };
+    loadRoles();
+  }, []);
   const getInitials = () => {
     if (!userName) return 'U';
     return userName
@@ -480,7 +489,7 @@ const handleLogout = () => {
       isAdmin={isAdmin}
       userName={userName}
       userInitials={getInitials()}
-      userRole={isAdmin ? 'Admin' : profile?.accountType || ''}
+          userRole={roles?.[0]}
     >
       {content}
     </SidebarLayout>

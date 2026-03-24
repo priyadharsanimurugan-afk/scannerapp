@@ -1,11 +1,12 @@
 // components/Sidebar.tsx
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   useWindowDimensions,
+  ActivityIndicator,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useRouter, usePathname } from 'expo-router';
@@ -25,7 +26,6 @@ interface SidebarProps {
 
 const BASE_NAV_ITEMS = [
   { icon: 'grid-outline',   activeIcon: 'grid',   label: 'Dashboard', route: '/dashboard' },
-  { icon: 'scan-outline',   activeIcon: 'scan',   label: 'Scan',      route: '/scan-web' },
   { icon: 'people-outline', activeIcon: 'people', label: 'Contacts',  route: '/contacts-web' },
   { icon: 'cog-outline',    activeIcon: 'cog',    label: 'Settings',  route: '/settings' },
 ];
@@ -48,14 +48,42 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const router   = useRouter();
   const pathname = usePathname();
+  const [navigating, setNavigating] = useState(false);
+  const [pendingRoute, setPendingRoute] = useState<string | null>(null);
 
   const navItems = isAdmin
-    ? [...BASE_NAV_ITEMS.slice(0, 3), ADMIN_NAV_ITEM, BASE_NAV_ITEMS[3]]
+    ? [...BASE_NAV_ITEMS.slice(0, 2), ADMIN_NAV_ITEM, BASE_NAV_ITEMS[2]]
     : BASE_NAV_ITEMS;
 
   const isActive = (route: string) => {
     if (route === '/dashboard') return pathname === '/dashboard' || pathname === '/';
-    return pathname.startsWith(route);
+    if (route === '/contacts-web') return pathname === '/contacts-web' || pathname === '/contacts';
+    return pathname === route;
+  };
+
+  const handleNavigation = async (route: string) => {
+    if (navigating) return;
+    
+    // Don't navigate if already on that page
+    if (isActive(route)) return;
+    
+    setNavigating(true);
+    setPendingRoute(route);
+    
+    // Add a small delay to show the loading state
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    try {
+      await router.push(route as any);
+    } catch (error) {
+      console.error('Navigation error:', error);
+    } finally {
+      // Add a small delay before hiding loading state
+      setTimeout(() => {
+        setNavigating(false);
+        setPendingRoute(null);
+      }, 300);
+    }
   };
 
   return (
@@ -77,20 +105,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <View style={styles.nav}>
         {navItems.map(item => {
           const active = isActive(item.route);
+          const isLoading = navigating && pendingRoute === item.route;
+          
           return (
             <TouchableOpacity
               key={item.route}
-              style={[styles.navItem, active && styles.navItemActive]}
-              onPress={() => router.push(item.route as any)}
+              style={[
+                styles.navItem, 
+                active && styles.navItemActive,
+                isLoading && styles.navItemLoading
+              ]}
+              onPress={() => handleNavigation(item.route)}
               activeOpacity={0.75}
+              disabled={navigating}
             >
               {active && <View style={styles.activeBar} />}
               <View style={[styles.navIconWrap, active && styles.navIconWrapActive]}>
-                <Icon
-                  name={active ? item.activeIcon : item.icon}
-                  size={18}
-                  color={active ? colors.navy : 'rgba(255,255,255,0.45)'}
-                />
+                {isLoading ? (
+                  <ActivityIndicator size="small" color={active ? colors.navy : 'rgba(255,255,255,0.45)'} />
+                ) : (
+                  <Icon
+                    name={active ? item.activeIcon : item.icon}
+                    size={18}
+                    color={active ? colors.navy : 'rgba(255,255,255,0.45)'}
+                  />
+                )}
               </View>
               <Text style={[styles.navLabel, active && styles.navLabelActive]}>
                 {item.label}
@@ -105,9 +144,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* User footer */}
       <View style={styles.divider} />
       <TouchableOpacity
-        style={styles.userFooter}
-        onPress={() => router.push('/settings')}
+        style={[styles.userFooter, navigating && styles.userFooterDisabled]}
+        onPress={() => handleNavigation('/settings')}
         activeOpacity={0.8}
+        disabled={navigating}
       >
         <View style={[styles.userAvatar, { backgroundColor: userAvatarColor }]}>
           <Text style={styles.userAvatarText}>{userInitials}</Text>
@@ -247,9 +287,13 @@ const styles = StyleSheet.create({
     borderRadius:   10,
     position:       'relative',
     overflow:       'hidden',
+    transition:     'all 0.2s ease-in-out',
   },
   navItemActive: {
     backgroundColor: 'rgba(245,159,10,0.13)',
+  },
+  navItemLoading: {
+    opacity: 0.7,
   },
   activeBar: {
     position:        'absolute',
@@ -266,6 +310,7 @@ const styles = StyleSheet.create({
     borderRadius:   9,
     justifyContent: 'center',
     alignItems:     'center',
+    transition:     'all 0.2s ease-in-out',
   },
   navIconWrapActive: {
     backgroundColor: colors.amber,
@@ -274,6 +319,7 @@ const styles = StyleSheet.create({
     fontSize:   13,
     fontWeight: '600',
     color:      'rgba(255,255,255,0.45)',
+    transition: 'color 0.2s ease-in-out',
   },
   navLabelActive: {
     color:      colors.white,
@@ -288,6 +334,10 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 4,
     borderRadius:  10,
+    transition:    'all 0.2s ease-in-out',
+  },
+  userFooterDisabled: {
+    opacity: 0.6,
   },
   userAvatar: {
     width:          36,

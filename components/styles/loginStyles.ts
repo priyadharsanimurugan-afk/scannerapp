@@ -170,6 +170,7 @@ toast: {
 
   brandName: {
     color: colors.white,
+    marginTop:17,
     fontSize: isDesktop ? 22 : 18,
     fontWeight: '800',
     letterSpacing: -0.3,

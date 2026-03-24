@@ -15,6 +15,7 @@ import {
   SafeAreaView,
   useWindowDimensions,
   Platform,
+  Alert,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -24,6 +25,7 @@ import { useDashboard } from "@/hooks/useDashboard";
 import { useProfile } from "@/hooks/useProfile";
 import { getRoles } from "@/utils/tokenStorage";
 import { SidebarLayout } from "../sidebar";
+import { Toast } from "@/components/webalert";
 
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -381,7 +383,9 @@ const ms = StyleSheet.create({
   // Mobile styles
   safeArea: {
     flex: 1,
-    backgroundColor: "#F5F6F8",
+    backgroundColor: "#f3f2f2",
+    color: colors.text,
+     marginTop:60,
   },
   topBar: {
     flexDirection: "row",
@@ -389,11 +393,13 @@ const ms = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: colors.white,
+    color: colors.white,
+    backgroundColor: colors.navy,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "#E0E0E0",
+
   },
-  topBarTitle: { fontSize: 16, fontWeight: "600", color: colors.text },
+  topBarTitle: { fontSize: 16, fontWeight: "600", color: colors.white },
   iconBtn: {
     width: 36, height: 36, borderRadius: 18,
     backgroundColor: "#F0F0F0",
@@ -711,6 +717,220 @@ const DashboardContent = ({
     return "Good evening";
   };
 
+ 
+
+  // For desktop, we separate header and scrollable content
+  if (isDesktop) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.phoneBg }}>
+        {/* Fixed Header - Desktop Only */}
+        <View style={dashboardStyles.desktopHeroSmall}>
+          <View style={dashboardStyles.desktopHeroContentSmall}>
+            <View>
+              <Text style={dashboardStyles.desktopHeroGreetingSmall}>{greeting()} 👋</Text>
+              <Text style={dashboardStyles.desktopHeroTitleSmall}>
+                Welcome back, <Text style={dashboardStyles.desktopHeroNameSmall}>{getUserFirstName()}</Text>
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={onSettingsPress}
+              activeOpacity={0.8}
+              style={dashboardStyles.desktopHeroAvatarSmall}
+            >
+              <View style={[dashboardStyles.desktopAvatarSmall, { backgroundColor: getUserAvatarColor() }]}>
+                <Text style={dashboardStyles.desktopAvatarTextSmall}>{getUserInitials()}</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Scrollable Content */}
+        <ScrollView
+          style={{ flex: 1, backgroundColor: colors.phoneBg }}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={loading}
+              onRefresh={fetchDashboard}
+              colors={[colors.amber]}
+              tintColor={colors.amber}
+            />
+          }
+          contentContainerStyle={{
+            paddingBottom: 40,
+            backgroundColor: colors.phoneBg,
+            flexGrow: 1,
+          }}
+        >
+          {/* Content Container with max-width constraint for desktop */}
+          <View style={{
+            maxWidth: 1200,
+            width: "100%",
+            alignSelf: "center",
+            paddingHorizontal: 24,
+          }}>
+            {/* ── Scan CTA ── */}
+            <TouchableOpacity
+              style={dashboardStyles.scanCta}
+              activeOpacity={0.85}
+              onPress={onScanPress}
+            >
+              <View style={dashboardStyles.ctaIcon}>
+                <Icon name="camera" size={22} color={colors.white} />
+              </View>
+              <View style={dashboardStyles.ctaText}>
+                <Text style={dashboardStyles.ctaTitle}>Scan Business Card</Text>
+                <Text style={dashboardStyles.ctaSub}>
+                  {summary?.remainingScans
+                    ? `${summary.remainingScans} scans remaining`
+                    : profile?.remainingScans
+                    ? `${profile.remainingScans} scans remaining`
+                    : "Extract contact info in seconds"}
+                </Text>
+              </View>
+              <Icon name="chevron-forward" size={16} color="rgba(255,255,255,0.8)" />
+            </TouchableOpacity>
+
+            {/* ── Stats Grid ── */}
+            <View style={dashboardStyles.statsGrid}>
+              <TouchableOpacity style={dashboardStyles.statCard} activeOpacity={0.8} onPress={onContactsPress}>
+                <View style={dashboardStyles.statBar} />
+                <View style={dashboardStyles.statIcon}>
+                  <Icon name="people" size={13} color={colors.amberDark} />
+                </View>
+                <Text style={dashboardStyles.statValue}>{summary?.totalContactsCount ?? 0}</Text>
+                <Text style={dashboardStyles.statLabel}>Contacts</Text>
+                <View style={dashboardStyles.statBadge}>
+                  <Icon name="people-outline" size={7} color={colors.partner} />
+                  <Text style={dashboardStyles.statBadgeText}>All</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={dashboardStyles.statCard} activeOpacity={0.8} onPress={onScannedPress}>
+                <View style={dashboardStyles.statBar} />
+                <View style={dashboardStyles.statIcon}>
+                  <Icon name="scan" size={13} color={colors.amberDark} />
+                </View>
+                <Text style={dashboardStyles.statValue}>
+                  {summary?.totalScansUsed ?? profile?.totalScansUsed ?? 0}
+                </Text>
+                <Text style={dashboardStyles.statLabel}>Scanned</Text>
+                <View style={dashboardStyles.statBadge}>
+                  <Icon name="scan-outline" size={7} color={colors.partner} />
+                  <Text style={dashboardStyles.statBadgeText}>Used</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={dashboardStyles.statCard} activeOpacity={0.8}>
+                <View style={dashboardStyles.statBar} />
+                <View style={dashboardStyles.statIcon}>
+                  <Icon name="download" size={13} color={colors.amberDark} />
+                </View>
+                <Text style={dashboardStyles.statValue}>{summary?.totalExportsCount ?? 0}</Text>
+                <Text style={dashboardStyles.statLabel}>Exports</Text>
+                <View style={dashboardStyles.statBadge}>
+                  <Icon name="download-outline" size={7} color={colors.partner} />
+                  <Text style={dashboardStyles.statBadgeText}>All</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+
+            {/* ── Quick Actions ── */}
+            <View style={dashboardStyles.sectionHead}>
+              <Text style={dashboardStyles.sectionTitle}>Quick Actions</Text>
+            </View>
+            <View style={dashboardStyles.quickRow}>
+              <TouchableOpacity style={dashboardStyles.quickBtn} onPress={onScanPress} activeOpacity={0.8}>
+                <View style={dashboardStyles.quickIcon}>
+                  <Icon name="camera" size={14} color={colors.amberDark} />
+                </View>
+                <Text style={dashboardStyles.quickLabel}>Scan Card</Text>
+              </TouchableOpacity>
+
+              {isAdmin ? (
+                <TouchableOpacity style={dashboardStyles.quickBtn} onPress={onUsersPress} activeOpacity={0.8}>
+                  <View style={dashboardStyles.quickIcon}>
+                    <Icon name="people-outline" size={14} color={colors.amberDark} />
+                  </View>
+                  <Text style={dashboardStyles.quickLabel}>Users</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity style={dashboardStyles.quickBtn} onPress={onSharePress} activeOpacity={0.8}>
+                  <View style={dashboardStyles.quickIcon}>
+                    <Icon name="share-social" size={14} color={colors.amberDark} />
+                  </View>
+                  <Text style={dashboardStyles.quickLabel}>Share</Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity style={dashboardStyles.quickBtn} onPress={onContactsPress} activeOpacity={0.8}>
+                <View style={dashboardStyles.quickIcon}>
+                  <Icon name="call-outline" size={14} color={colors.amberDark} />
+                </View>
+                <Text style={dashboardStyles.quickLabel}>Contacts</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={dashboardStyles.quickBtn} onPress={onSettingsPress} activeOpacity={0.8}>
+                <View style={dashboardStyles.quickIcon}>
+                  <Icon name="cog-outline" size={14} color={colors.amberDark} />
+                </View>
+                <Text style={dashboardStyles.quickLabel}>Settings</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* ── Recent Contacts ── */}
+            <View style={dashboardStyles.sectionHead}>
+              <Text style={dashboardStyles.sectionTitle}>Recent Contacts</Text>
+              <TouchableOpacity onPress={onContactsPress}>
+                <Text style={dashboardStyles.sectionLink}>View all →</Text>
+              </TouchableOpacity>
+            </View>
+
+            {error ? (
+              <View style={dashboardStyles.emptyState}>
+                <Icon name="alert-circle-outline" size={36} color={colors.error} />
+                <Text style={{ color: colors.error, textAlign: "center", marginTop: 8, fontSize: 13 }}>
+                  {error}
+                </Text>
+                <TouchableOpacity onPress={fetchDashboard} style={dashboardStyles.emptyStateBtn}>
+                  <Text style={{ color: colors.white, fontWeight: "700" }}>Retry</Text>
+                </TouchableOpacity>
+              </View>
+            ) : recentContacts.length === 0 ? (
+              <View style={dashboardStyles.emptyState}>
+                <Icon name="people-outline" size={40} color={colors.muted} />
+                <Text style={dashboardStyles.emptyStateTitle}>No contacts yet</Text>
+                <Text style={dashboardStyles.emptyStateSubtitle}>
+                  Scan a business card to get started
+                </Text>
+                <TouchableOpacity style={dashboardStyles.emptyStateBtn} onPress={onScanPress}>
+                  <Text style={{ color: colors.white, fontWeight: "700", fontSize: 13 }}>Scan Now</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={dashboardStyles.contactList}>
+                {recentContacts.map((contact, index) => (
+                  <ContactCard
+                    key={`contact-${index}`}
+                    contact={contact}
+                    onPress={onContactPress}
+                  />
+                ))}
+              </View>
+            )}
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
+if (loading && !summary) {
+  return (
+    <View style={dashboardStyles.loadingContainer}>
+      <ActivityIndicator size="large" color={colors.amber} />
+    </View>
+  );
+}
+  // Mobile/Tablet layout (scrolls everything)
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.phoneBg }}
@@ -731,64 +951,39 @@ const DashboardContent = ({
         },
       ]}
     >
-      {/* Hero Header for Desktop - Full Width with Smaller Size */}
-      {isDesktop && (
-        <View style={dashboardStyles.desktopHeroSmall}>
-          <View style={dashboardStyles.desktopHeroContentSmall}>
-            <View>
-              <Text style={dashboardStyles.desktopHeroGreetingSmall}>{greeting()} 👋</Text>
-              <Text style={dashboardStyles.desktopHeroTitleSmall}>
-                Welcome back, <Text style={dashboardStyles.desktopHeroNameSmall}>{getUserFirstName()}</Text>
-              </Text>
-             
-            </View>
-            <TouchableOpacity
-              onPress={onSettingsPress}
-              activeOpacity={0.8}
-              style={dashboardStyles.desktopHeroAvatarSmall}
-            >
-              <View style={[dashboardStyles.desktopAvatarSmall, { backgroundColor: getUserAvatarColor() }]}>
-                <Text style={dashboardStyles.desktopAvatarTextSmall}>{getUserInitials()}</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-
-      {/* Content Container with max-width constraint for desktop */}
+      {/* Content Container with max-width constraint for tablet */}
       <View style={[
-        isDesktop && {
-          maxWidth: 1200,
+        (isTablet) && {
+          maxWidth: 768,
           width: "100%",
           alignSelf: "center",
+          paddingHorizontal: 16,
         }
       ]}>
         {/* Mobile Header */}
-        {!isDesktop && (
-          <View style={dashboardStyles.header}>
-            <View style={dashboardStyles.headerGlow1} />
-            <View style={dashboardStyles.headerGlow2} />
-            <View style={dashboardStyles.headerTop}>
-              <View>
-                <Text style={dashboardStyles.greetText}>{greeting()} 👋</Text>
-                <Text style={dashboardStyles.titleText}>
-                  Welcome back,{"\n"}
-                  <Text style={dashboardStyles.titleSpan}>{getUserFirstName()}!</Text>
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={dashboardStyles.avatarContainer}
-                onPress={onSettingsPress}
-                activeOpacity={0.8}
-              >
-                <View style={[dashboardStyles.avatar, { backgroundColor: getUserAvatarColor() }]}>
-                  <Text style={dashboardStyles.avatarText}>{getUserInitials()}</Text>
-                </View>
-                <View style={dashboardStyles.notificationDot} />
-              </TouchableOpacity>
+        <View style={dashboardStyles.header}>
+          <View style={dashboardStyles.headerGlow1} />
+          <View style={dashboardStyles.headerGlow2} />
+          <View style={dashboardStyles.headerTop}>
+            <View>
+              <Text style={dashboardStyles.greetText}>{greeting()} 👋</Text>
+              <Text style={dashboardStyles.titleText}>
+                Welcome back,{"\n"}
+                <Text style={dashboardStyles.titleSpan}>{getUserFirstName()}!</Text>
+              </Text>
             </View>
+            <TouchableOpacity
+              style={dashboardStyles.avatarContainer}
+              onPress={onSettingsPress}
+              activeOpacity={0.8}
+            >
+              <View style={[dashboardStyles.avatar, { backgroundColor: getUserAvatarColor() }]}>
+                <Text style={dashboardStyles.avatarText}>{getUserInitials()}</Text>
+              </View>
+              <View style={dashboardStyles.notificationDot} />
+            </TouchableOpacity>
           </View>
-        )}
+        </View>
 
         {/* ── Scan CTA ── */}
         <TouchableOpacity
@@ -952,6 +1147,7 @@ export default function DashboardScreen() {
   const { profile, loading: profileLoading } = useProfile();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 1024;
+  const isMobile = width < 768;
   
   const [selectedContact, setSelectedContact] = useState<any>(null);
   const [detailVisible, setDetailVisible] = useState(false);
@@ -960,7 +1156,15 @@ export default function DashboardScreen() {
   useFocusEffect(
     useCallback(() => { fetchDashboard(); }, [])
   );
+ const [roles, setRoles] = useState<string[] | null>(null);
 
+  useEffect(() => {
+    const loadRoles = async () => {
+      const storedRoles = await getRoles();
+      setRoles(storedRoles);
+    };
+    loadRoles();
+  }, []);
   useEffect(() => {
     const checkRole = async () => {
       const roles = await getRoles();
@@ -975,10 +1179,24 @@ export default function DashboardScreen() {
   };
 
   const handleScanPress = () => {
+    // Check if device is desktop or tablet (non-mobile)
+    if (!isMobile) {
+      Toast.info("Scanning is only available on mobile devices. Please open this app on your phone to use the camera.");
+      return;
+    }
     router.push("/scan");
   };
   
-  const handleContactsPress = () => router.push("/contacts");
+  // app/dashboard/index.tsx - Updated handleContactsPress
+
+  // Fixed: Use the isDesktop variable already declared at component level
+  const handleContactsPress = () => {
+    if (isDesktop) {
+      router.push("/contacts-web");
+    } else {
+      router.push("/contacts");
+    }
+  };
   const handleSettingsPress = () => router.push("/settings");
   const handleUsersPress = () => router.push("/users");
   const handleScannedPress = () => router.push("/contacts?filter=scanned");
@@ -997,15 +1215,6 @@ export default function DashboardScreen() {
     } catch (e) { console.error(e); }
   };
 
-  // Loading state
-  if ((loading && !summary && recentContacts.length === 0) || profileLoading) {
-    return (
-      <View style={[dashboardStyles.container, { justifyContent: "center", alignItems: "center" }]}>
-        <ActivityIndicator size="large" color={colors.amber} />
-        <Text style={{ marginTop: 12, color: colors.muted }}>Loading dashboard...</Text>
-      </View>
-    );
-  }
 
   // Get user details for sidebar
   const getUserFullName = () => profile?.userName || "User";
@@ -1018,7 +1227,7 @@ export default function DashboardScreen() {
       userInitials={getUserInitials()}
       userAvatarColor={getUserAvatarColor()}
       userName={getUserFullName()}
-      userRole={profile?.role}
+       userRole={roles?.[0]}
     >
       <StatusBar barStyle="light-content" backgroundColor={colors.navy} />
       

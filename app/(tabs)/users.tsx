@@ -5,9 +5,9 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   Platform,
   useWindowDimensions,
+  Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
 
@@ -15,8 +15,12 @@ import { dashboardStyles } from "@/components/styles/dashboardStyles";
 import { colors } from "@/constants/colors";
 import { getAllUsers, upgradeUser, downgradeUser } from "@/services/users";
 import { SidebarLayout } from "../sidebar";
+import { Toast } from "@/components/webalert";
+import { getRoles } from "@/utils/tokenStorage";
+import { useProfile } from "@/hooks/useProfile";
 
-// Web-specific alert with beautiful inline CSS
+
+// Platform-specific alert (keeping this as it's separate functionality)
 const showWebAlert = (title: string, message: string, onConfirm: () => void) => {
   if (Platform.OS !== 'web') return;
 
@@ -119,7 +123,9 @@ const showWebAlert = (title: string, message: string, onConfirm: () => void) => 
     cursor: pointer;
     transition: all 0.2s;
     box-shadow: 0 2px 8px rgba(245, 159, 10, 0.3);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   `;
+
   confirmBtn.onmouseenter = () => {
     confirmBtn.style.transform = 'translateY(-1px)';
     confirmBtn.style.boxShadow = '0 4px 12px rgba(245, 159, 10, 0.4)';
@@ -162,66 +168,16 @@ const showWebAlert = (title: string, message: string, onConfirm: () => void) => 
   document.body.appendChild(overlay);
 };
 
-// Web success/error toast notification
-const showWebToast = (message: string, type: 'success' | 'error') => {
-  if (Platform.OS !== 'web') return;
-
-  const toast = document.createElement('div');
-  const bgColor = type === 'success' 
-    ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
-    : 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)';
-  
-  toast.style.cssText = `
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    background: ${bgColor};
-    color: white;
-    padding: 12px 24px;
-    border-radius: 12px;
-    font-size: 14px;
-    font-weight: 600;
-    z-index: 999999;
-    animation: slideInRight 0.3s ease-out;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  `;
-  toast.textContent = message;
-
-  const style = document.createElement('style');
-  style.textContent = `
-    @keyframes slideInRight {
-      from {
-        opacity: 0;
-        transform: translateX(100px);
-      }
-      to {
-        opacity: 1;
-        transform: translateX(0);
-      }
-    }
-    @keyframes slideOutRight {
-      from {
-        opacity: 1;
-        transform: translateX(0);
-      }
-      to {
-        opacity: 0;
-        transform: translateX(100px);
-      }
-    }
-  `;
-  document.head.appendChild(style);
-
-  document.body.appendChild(toast);
-  
-  setTimeout(() => {
-    toast.style.animation = 'slideOutRight 0.3s ease-out';
-    setTimeout(() => {
-      if (document.body.contains(toast)) {
-        document.body.removeChild(toast);
-      }
-    }, 300);
-  }, 3000);
+// Platform-specific alert wrapper
+const showAlert = (title: string, message: string, onConfirm: () => void) => {
+  if (Platform.OS === 'web') {
+    showWebAlert(title, message, onConfirm);
+  } else {
+    Alert.alert(title, message, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Confirm", onPress: onConfirm },
+    ]);
+  }
 };
 
 export default function UsersScreen() {
@@ -239,34 +195,26 @@ export default function UsersScreen() {
   const indexOfFirstUser = indexOfLastUser - USERS_PER_PAGE;
   const currentUsers = users.slice(indexOfFirstUser, indexOfLastUser);
   const totalPages = Math.ceil(users.length / USERS_PER_PAGE);
+  const [roles, setRoles] = useState<string[] | null>(null);
 
-  // Platform-specific alert
-  const showAlert = (title: string, message: string, onConfirm: () => void) => {
-    if (Platform.OS === 'web') {
-      showWebAlert(title, message, onConfirm);
-    } else {
-      Alert.alert(title, message, [
-        { text: "Cancel", style: "cancel" },
-        { text: "Confirm", onPress: onConfirm },
-      ]);
-    }
-  };
+    const { profile, loading: profileLoading } = useProfile();
 
-  const showNotification = (message: string, type: 'success' | 'error') => {
-    if (Platform.OS === 'web') {
-      showWebToast(message, type);
-    } else {
-      Alert.alert(type === 'success' ? 'Success' : 'Error', message);
-    }
-  };
+  useEffect(() => {
+    const loadRoles = async () => {
+      const storedRoles = await getRoles();
+      setRoles(storedRoles);
+    };
+    loadRoles();
+  }, []);
 
+    const getUserFullName = () => profile?.userName || "User";
   const fetchUsers = async () => {
     try {
       const data = await getAllUsers();
       setUsers(data);
     } catch (err) {
       console.log(err);
-      showNotification('Failed to fetch users', 'error');
+      Toast.error('Failed to fetch users');
     } finally {
       setLoading(false);
     }
@@ -284,10 +232,10 @@ export default function UsersScreen() {
         try {
           await upgradeUser(id);
           fetchUsers();
-          showNotification(`${userName} has been upgraded to Premium!`, 'success');
+          Toast.success(`${userName} has been upgraded to Premium!`);
         } catch (error) {
           console.log("Upgrade failed:", error);
-          showNotification('Upgrade failed. Please try again.', 'error');
+          Toast.error('Upgrade failed. Please try again.');
         }
       }
     );
@@ -301,173 +249,160 @@ export default function UsersScreen() {
         try {
           await downgradeUser(id);
           fetchUsers();
-          showNotification(`${userName} has been downgraded to Free plan!`, 'success');
+          Toast.success(`${userName} has been downgraded to Free plan!`);
         } catch (error) {
           console.log("Downgrade failed:", error);
-          showNotification('Downgrade failed. Please try again.', 'error');
+          Toast.error('Downgrade failed. Please try again.');
         }
       }
     );
   };
 
-  // Loading state with responsive layout
-  if (loading) {
-    const LoadingContent = () => (
-      <View
-        style={[
-          dashboardStyles.container,
-          { justifyContent: "center", alignItems: "center" },
-        ]}
-      >
-        <ActivityIndicator size="large" color={colors.amber} />
-      </View>
-    );
-
-    if (isDesktop) {
+  const UsersContent = () => {
+    if (loading) {
       return (
-        <SidebarLayout isAdmin={true}>
-          <LoadingContent />
-        </SidebarLayout>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={colors.amber} />
+        </View>
       );
     }
-    return <LoadingContent />;
-  }
 
-  const UsersContent = () => (
-    <View style={[dashboardStyles.container, isDesktop && { backgroundColor: colors.phoneBg }]}>
-      {/* HEADER WITH GLOW */}
-      <View style={dashboardStyles.header}>
-        <View style={dashboardStyles.headerGlow1} />
-        <View style={dashboardStyles.headerGlow2} />
+    return (
+      <View style={[dashboardStyles.container, isDesktop && { backgroundColor: colors.phoneBg }]}>
+        {/* HEADER WITH GLOW */}
+        <View style={dashboardStyles.header}>
+          <View style={dashboardStyles.headerGlow1} />
+          <View style={dashboardStyles.headerGlow2} />
 
-        <View style={dashboardStyles.headerTop}>
-          <View>
-            <Text style={dashboardStyles.greetText}>Admin Panel</Text>
-            <Text style={dashboardStyles.titleText}>
-              Manage <Text style={dashboardStyles.titleSpan}>Users</Text>
-            </Text>
-            {!isDesktop && (
-              <TouchableOpacity 
-                onPress={() => router.back()}
-                style={{ marginTop: 8 }}
-              >
-                <Text style={{ color: colors.amber, fontSize: 14 }}>
-                  ← Back
-                </Text>
-              </TouchableOpacity>
-            )}
+          <View style={dashboardStyles.headerTop}>
+            <View>
+              <Text style={dashboardStyles.greetText}>Admin Panel</Text>
+              <Text style={dashboardStyles.titleText}>
+                Manage <Text style={dashboardStyles.titleSpan}>Users</Text>
+              </Text>
+              {!isDesktop && (
+                <TouchableOpacity 
+                  onPress={() => router.back()}
+                  style={{ marginTop: 8 }}
+                >
+                  <Text style={{ color: colors.amber, fontSize: 14 }}>
+                    ← Back
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
         </View>
-      </View>
 
-      <ScrollView
-        style={[dashboardStyles.body, isDesktop && { maxWidth: 1200, alignSelf: 'center', width: '100%' }]}
-        contentContainerStyle={{ paddingBottom: 40 }}
-      >
-        {/* Section Header */}
-        <View style={dashboardStyles.sectionHead}>
-          <Text style={dashboardStyles.sectionTitle}>All Users</Text>
-          <Text style={dashboardStyles.sectionSubtitle}>
-            Total: {users.length} users
-          </Text>
-        </View>
+        <ScrollView
+          style={[dashboardStyles.body, isDesktop && { maxWidth: 1200, alignSelf: 'center', width: '100%' }]}
+          contentContainerStyle={{ paddingBottom: 40 }}
+        >
+          {/* Section Header */}
+          <View style={dashboardStyles.sectionHead}>
+            <Text style={dashboardStyles.sectionTitle}>All Users</Text>
+            <Text style={dashboardStyles.sectionSubtitle}>
+              Total: {users.length} users
+            </Text>
+          </View>
 
-        {/* Users List */}
-        <View style={dashboardStyles.contactList}>
-          {currentUsers.map((user) => (
-            <View key={user.id} style={dashboardStyles.contactCard}>
-              {/* Avatar */}
-              <View
-                style={[
-                  dashboardStyles.contactAvatar,
-                  { backgroundColor: colors.navy },
-                ]}
-              >
-                <Text style={dashboardStyles.contactAvatarText}>
-                  {user.userName?.[0]?.toUpperCase() || "U"}
-                </Text>
-              </View>
-
-              {/* User Info */}
-              <View style={dashboardStyles.contactInfo}>
-                <Text style={dashboardStyles.contactName}>
-                  {user.userName || "Unnamed User"}
-                </Text>
-                <Text style={dashboardStyles.contactRole}>
-                  {user.email || "No email"}
-                </Text>
-                <View style={dashboardStyles.planBadge}>
-                  <Text style={[
-                    dashboardStyles.contactCompany,
-                    user.accountType === "Premium" && dashboardStyles.premiumText
-                  ]}>
-                    {user.accountType || "Free"} Plan
+          {/* Users List */}
+          <View style={dashboardStyles.contactList}>
+            {currentUsers.map((user) => (
+              <View key={user.id} style={dashboardStyles.contactCard}>
+                {/* Avatar */}
+                <View
+                  style={[
+                    dashboardStyles.contactAvatar,
+                    { backgroundColor: colors.navy },
+                  ]}
+                >
+                  <Text style={dashboardStyles.contactAvatarText}>
+                    {user.userName?.[0]?.toUpperCase() || "U"}
                   </Text>
                 </View>
-                <Text style={dashboardStyles.remainingScans}>
-                  {user.remainingScans || 0} scans remaining
+
+                {/* User Info */}
+                <View style={dashboardStyles.contactInfo}>
+                  <Text style={dashboardStyles.contactName}>
+                    {user.userName || "Unnamed User"}
+                  </Text>
+                  <Text style={dashboardStyles.contactRole}>
+                    {user.email || "No email"}
+                  </Text>
+                  <View style={dashboardStyles.planBadge}>
+                    <Text style={[
+                      dashboardStyles.contactCompany,
+                      user.accountType === "Premium" && dashboardStyles.premiumText
+                    ]}>
+                      {user.accountType || "Free"} Plan
+                    </Text>
+                  </View>
+                  <Text style={dashboardStyles.remainingScans}>
+                    {user.remainingScans || 0} scans remaining
+                  </Text>
+                </View>
+
+                {/* Action Buttons */}
+                <View>
+                  {user.accountType === "Premium" ? (
+                    <TouchableOpacity
+                      style={dashboardStyles.downgradeButton}
+                      onPress={() => handleDowngrade(user.userName, user.id)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={dashboardStyles.buttonText}>Downgrade</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      style={dashboardStyles.upgradeButton}
+                      onPress={() => handleUpgrade(user.userName, user.id)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={dashboardStyles.buttonText}>Upgrade</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+            ))}
+          </View>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <View style={dashboardStyles.paginationContainer}>
+              <TouchableOpacity
+                style={[
+                  dashboardStyles.paginationButton,
+                  currentPage === 1 && dashboardStyles.paginationButtonDisabled
+                ]}
+                onPress={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+              >
+                <Text style={dashboardStyles.paginationText}>Previous</Text>
+              </TouchableOpacity>
+              
+              <View style={dashboardStyles.paginationInfo}>
+                <Text style={dashboardStyles.paginationInfoText}>
+                  Page {currentPage} of {totalPages}
                 </Text>
               </View>
-
-              {/* Action Buttons */}
-              <View>
-                {user.accountType === "Premium" ? (
-                  <TouchableOpacity
-                    style={dashboardStyles.downgradeButton}
-                    onPress={() => handleDowngrade(user.userName, user.id)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={dashboardStyles.buttonText}>Downgrade</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <TouchableOpacity
-                    style={dashboardStyles.upgradeButton}
-                    onPress={() => handleUpgrade(user.userName, user.id)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={dashboardStyles.buttonText}>Upgrade</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
+              
+              <TouchableOpacity
+                style={[
+                  dashboardStyles.paginationButton,
+                  currentPage === totalPages && dashboardStyles.paginationButtonDisabled
+                ]}
+                onPress={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+              >
+                <Text style={dashboardStyles.paginationText}>Next</Text>
+              </TouchableOpacity>
             </View>
-          ))}
-        </View>
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <View style={dashboardStyles.paginationContainer}>
-            <TouchableOpacity
-              style={[
-                dashboardStyles.paginationButton,
-                currentPage === 1 && dashboardStyles.paginationButtonDisabled
-              ]}
-              onPress={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-              disabled={currentPage === 1}
-            >
-              <Text style={dashboardStyles.paginationText}>Previous</Text>
-            </TouchableOpacity>
-            
-            <View style={dashboardStyles.paginationInfo}>
-              <Text style={dashboardStyles.paginationInfoText}>
-                Page {currentPage} of {totalPages}
-              </Text>
-            </View>
-            
-            <TouchableOpacity
-              style={[
-                dashboardStyles.paginationButton,
-                currentPage === totalPages && dashboardStyles.paginationButtonDisabled
-              ]}
-              onPress={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-              disabled={currentPage === totalPages}
-            >
-              <Text style={dashboardStyles.paginationText}>Next</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </ScrollView>
-    </View>
-  );
+          )}
+        </ScrollView>
+      </View>
+    );
+  };
 
   // Wrap with SidebarLayout on desktop
   if (isDesktop) {
@@ -476,8 +411,8 @@ export default function UsersScreen() {
         isAdmin={true}
         userInitials="A"
         userAvatarColor={colors.amber}
-        userName="Admin"
-        userRole="Administrator"
+      userName={getUserFullName()}
+     userRole={roles?.[0]}
       >
         <UsersContent />
       </SidebarLayout>

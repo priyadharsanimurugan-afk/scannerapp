@@ -1,15 +1,14 @@
-import { Stack, useRouter, useSegments, Slot } from "expo-router";
+import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { View, ActivityIndicator } from "react-native";
+import { View, ActivityIndicator, Text } from "react-native";
 import { useEffect, useState } from "react";
 import { getAccessToken, deleteTokens } from "@/utils/tokenStorage";
 import { CardProvider } from "@/components/store/useCardStore";
 import { SafeAreaView } from "react-native-safe-area-context";
 import FloatingMenu from "./FloatingMenu";
 import { MenuVisibilityProvider, useMenuVisibility } from "@/context/MenuVisibilityContext";
-import { setLogoutHandler } from "@/utils/logout";
-import { getIsLoggingOut } from "@/utils/logout";
-
+import { setLogoutHandler, getIsLoggingOut } from "@/utils/logout";
+import { ToastProvider } from "@/components/alertProvider";
 
 function LayoutContent() {
   const { isMenuVisible } = useMenuVisibility();
@@ -18,46 +17,100 @@ function LayoutContent() {
 
   const [loading, setLoading] = useState(true);
 
-useEffect(() => {
-  const checkLogin = async () => {
+  useEffect(() => {
+    const checkLogin = async () => {
+      // 🚨 Stop layout updates during logout
+      if (getIsLoggingOut()) return;
 
-    // 🚨 STOP layout during logout
-    if (getIsLoggingOut()) {
-      return;
-    }
+      const token = await getAccessToken();
 
-    const token = await getAccessToken();
+      const publicRoutes = ["login", "verify-email", "reset-password"];
+      const currentRoute = segments[0];
 
-    const publicRoutes = ['login', 'verify-email', 'reset-password'];
-    const currentRoute = segments[0];
-    const isPublicRoute = publicRoutes.includes(currentRoute);
-    const inAuthGroup = currentRoute === "login";
+      const isPublicRoute = publicRoutes.includes(currentRoute);
+      const inAuthGroup = currentRoute === "login";
 
-    if (!token && !isPublicRoute) {
-      router.replace("/login");
-    } else if (token && inAuthGroup) {
-      router.replace("/(tabs)/dashboard");
-    }
+      if (!token && !isPublicRoute) {
+        router.replace("/login");
+      } else if (token && inAuthGroup) {
+        router.replace("/(tabs)/dashboard");
+      }
 
-    setLoading(false);
-  };
+      // Smooth UX (avoid flicker)
+      setTimeout(() => setLoading(false), 400);
+    };
 
-  checkLogin();
-}, [segments]);
+    checkLogin();
+  }, [segments]);
 
-
+  // 🌟 BEAUTIFUL LOADING SCREEN
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" />
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: "#131C30",
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
+        {/* Logo / App Initial */}
+        <View
+          style={{
+            width: 90,
+            height: 90,
+            borderRadius: 20,
+            backgroundColor: "#F59E0B",
+            justifyContent: "center",
+            alignItems: "center",
+            marginBottom: 20,
+            shadowColor: "#000",
+            shadowOpacity: 0.3,
+            shadowRadius: 10,
+            elevation: 8,
+          }}
+        >
+          <Text style={{ fontSize: 32, fontWeight: "800", color: "#fff" }}>
+            C
+          </Text>
+        </View>
+
+        {/* App Name */}
+        <Text
+          style={{
+            fontSize: 20,
+            fontWeight: "700",
+            color: "#fff",
+            marginBottom: 8,
+          }}
+        >
+          CardScan
+        </Text>
+
+        {/* Subtitle */}
+        <Text
+          style={{
+            fontSize: 13,
+            color: "#aaa",
+            marginBottom: 20,
+          }}
+        >
+          Loading your dashboard...
+        </Text>
+
+        {/* Loader */}
+        <ActivityIndicator size="small" color="#F59E0B" />
       </View>
     );
   }
 
   return (
     <View style={{ flex: 1 }}>
+      {/* Top safe area */}
       <SafeAreaView style={{ backgroundColor: "#131C30" }} edges={["top"]} />
+
       <StatusBar style="light" translucent />
+
       <Stack screenOptions={{ headerShown: false }} />
 
       {isMenuVisible && <FloatingMenu />}
@@ -69,7 +122,7 @@ export default function RootLayout() {
   const router = useRouter();
 
   useEffect(() => {
-    // ✅ REGISTER GLOBAL LOGOUT HANDLER
+    // ✅ Global logout handler
     setLogoutHandler(async () => {
       await deleteTokens();
       router.replace("/login");
@@ -77,10 +130,12 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <CardProvider>
-      <MenuVisibilityProvider>
-        <LayoutContent />
-      </MenuVisibilityProvider>
-    </CardProvider>
+    <ToastProvider>
+      <CardProvider>
+        <MenuVisibilityProvider>
+          <LayoutContent />
+        </MenuVisibilityProvider>
+      </CardProvider>
+    </ToastProvider>
   );
 }

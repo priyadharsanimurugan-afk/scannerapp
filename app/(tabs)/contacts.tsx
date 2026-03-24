@@ -30,7 +30,8 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import { useContact } from '@/hooks/useContact';
 import { router, useFocusEffect } from 'expo-router';
 import { exportContacts } from '@/services/contact';
-import ImageViewerPackage  from 'react-native-image-zoom-viewer';
+import ImageViewer from 'react-native-image-zoom-viewer';
+
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -152,136 +153,78 @@ const handleShareContact = async (contact: ContactDetail) => {
   }
 };
 
-
-
-
-// ─── Replace your entire ImageViewer component with this ──
-
-// ─── Image Viewer Component ──
+// ─── Image Viewer Component with Swipe Support ──
 const ContactImageViewer = ({
   visible,
-  uri,
-  label,
+  images,
+  initialIndex = 0,
   onClose,
 }: {
   visible: boolean;
-  uri: string | null;
-  label: string;
+  images: Array<{ url: string; label?: string }>;
+  initialIndex?: number;
   onClose: () => void;
 }) => {
-  // ✅ rotation state
-  const [rotation, setRotation] = React.useState(0);
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
 
-  // Prepare images array
-  const imageUrls = React.useMemo(() => {
-    if (!uri) return [];
-    return [{ url: uri }];
-  }, [uri]);
+  useEffect(() => {
+    if (visible) {
+      setCurrentIndex(initialIndex);
+    }
+  }, [visible, initialIndex]);
+
+  if (!visible) return null;
+
+  const imageUrls = images.map(img => ({ url: img.url }));
 
   return (
-    <Modal
-      visible={visible}
-      transparent={false}
-      onRequestClose={onClose}
-      statusBarTranslucent
-    >
-      {uri && imageUrls.length > 0 ? (
-        <ImageViewerPackage
-          imageUrls={imageUrls}
-          enableSwipeDown
-          onSwipeDown={onClose}
-          onCancel={onClose}
-          enablePreload
-          backgroundColor="#000000"
-
-          
-          renderImage={(props) => (
-            <Image
-              {...props}
-              style={[
-                props.style,
-                { transform: [{ rotate: `${rotation}deg` }] },
-              ]}
-              resizeMode="contain"
-            />
-          )}
-
-          
-          loadingRender={() => (
-            <View style={ivs.loadingContainer}>
-              <ActivityIndicator size="large" color="#F2A65C" />
-              <Text style={ivs.loadingText}>Loading image...</Text>
-            </View>
-          )}
-
-         
-          renderHeader={() => (
-            <SafeAreaView edges={["top"]} style={ivs.safeHeader}>
-              <View style={ivs.header}>
-                {/* CLOSE */}
-                <TouchableOpacity onPress={onClose} style={ivs.closeButton}>
-                  <Icon name="close" size={24} color="#FFFFFF" />
-                </TouchableOpacity>
-
-                {/* TITLE */}
-                <Text style={ivs.headerTitle} numberOfLines={1}>
-                  {label}
-                </Text>
-
-                {/* ROTATE */}
-                <TouchableOpacity
-                  onPress={() => setRotation((prev) => prev + 90)}
-                  style={ivs.closeButton}
-                >
-                  <Icon name="refresh" size={22} color="#FFFFFF" />
-                </TouchableOpacity>
-              </View>
-            </SafeAreaView>
-          )}
-
-         
-          renderIndicator={(currentIndex, allSize) => (
-            <View style={ivs.indicatorContainer}>
-              <Text style={ivs.indicatorText}>
-                {currentIndex} / {allSize}
+    <Modal visible={visible} transparent={false} onRequestClose={onClose} statusBarTranslucent>
+      <ImageViewer
+        imageUrls={imageUrls}
+        index={currentIndex}
+        enableSwipeDown
+        onSwipeDown={onClose}
+        onCancel={onClose}
+        enablePreload
+        backgroundColor="#000000"
+        onIndexChange={(index: React.SetStateAction<number>) => setCurrentIndex(index)}
+        renderHeader={() => (
+          <SafeAreaView style={ivs.safeHeader}>
+            <View style={ivs.header}>
+              <TouchableOpacity onPress={onClose} style={ivs.closeButton}>
+                <Icon name="close" size={24} color="#FFFFFF" />
+              </TouchableOpacity>
+              <Text style={ivs.headerTitle} numberOfLines={1}>
+                {images[currentIndex]?.label || `Image ${currentIndex + 1} of ${images.length}`}
               </Text>
+              <View style={{ width: 44 }} />
             </View>
-          )}
-
-       
-          renderFooter={() => (
-            <View style={ivs.footer}>
-              <Text style={ivs.footerText}>
-                Pinch to zoom • Double tap to zoom
-              </Text>
-            </View>
-          )}
-
-          doubleClickInterval={300}
-          enableImageZoom
-          useNativeDriver
-          saveToLocalByLongPress={false}
-        />
-      ) : (
-        <View style={ivs.noImageContainer}>
-          <TouchableOpacity onPress={onClose} style={ivs.noImageClose}>
-            <Icon name="close" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-
-          <Icon
-            name="image-outline"
-            size={64}
-            color="rgba(255,255,255,0.3)"
-          />
-          <Text style={ivs.noImageText}>No image available</Text>
-        </View>
-      )}
+          </SafeAreaView>
+        )}
+        renderIndicator={(currentIndex, allSize) => (
+          <View style={ivs.indicatorContainer}>
+            <Text style={ivs.indicatorText}>
+              {currentIndex} / {allSize}
+            </Text>
+          </View>
+        )}
+        renderFooter={() => (
+          <View style={ivs.footer}>
+            <Text style={ivs.footerText}>
+              Swipe left/right to navigate • Pinch to zoom
+            </Text>
+          </View>
+        )}
+        doubleClickInterval={300}
+        enableImageZoom
+        useNativeDriver
+        saveToLocalByLongPress={false}
+      />
     </Modal>
   );
 };
 
 const ivs = StyleSheet.create({
-  /* ✅ SAFE HEADER WRAPPER */
   safeHeader: {
     position: "absolute",
     top: 0,
@@ -289,17 +232,14 @@ const ivs = StyleSheet.create({
     right: 0,
     zIndex: 1000,
   },
-
-  /* ✅ HEADER */
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: "rgba(0,0,0,0.3)",
+    paddingVertical: Platform.OS === 'ios' ? 12 : 8,
+    backgroundColor: "rgba(0,0,0,0.5)",
   },
-
   closeButton: {
     width: 44,
     height: 44,
@@ -310,7 +250,6 @@ const ivs = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.2)",
   },
-
   headerTitle: {
     color: "#FFFFFF",
     fontSize: 16,
@@ -319,8 +258,6 @@ const ivs = StyleSheet.create({
     textAlign: "center",
     marginHorizontal: 12,
   },
-
-  /* ✅ INDICATOR FIXED POSITION */
   indicatorContainer: {
     position: "absolute",
     top: Platform.OS === "ios" ? 90 : 70,
@@ -331,13 +268,10 @@ const ivs = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
   },
-
   indicatorText: {
     color: "#fff",
     fontSize: 12,
   },
-
-  /* FOOTER */
   footer: {
     position: "absolute",
     bottom: Platform.OS === "ios" ? 40 : 20,
@@ -346,7 +280,6 @@ const ivs = StyleSheet.create({
     alignItems: "center",
     zIndex: 1000,
   },
-
   footerText: {
     color: "rgba(255,255,255,0.7)",
     fontSize: 13,
@@ -355,49 +288,8 @@ const ivs = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
   },
-
-  /* LOADING */
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: "#000000",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  loadingText: {
-    color: "#FFFFFF",
-    marginTop: 12,
-    fontSize: 15,
-  },
-
-  /* NO IMAGE */
-  noImageContainer: {
-    flex: 1,
-    backgroundColor: "#000000",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  noImageClose: {
-    position: "absolute",
-    top: Platform.OS === "ios" ? 50 : 30,
-    left: 16,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
-  },
-
-  noImageText: {
-    color: "rgba(255,255,255,0.5)",
-    marginTop: 16,
-    fontSize: 16,
-  },
 });
+
 // ─── Edit Field ──────────────────────────────────────────────────────────────
 
 type EditForm = {
@@ -421,7 +313,7 @@ type EditForm = {
   gstNumber: string;
 };
 
-// Standalone memoised field — defined outside sheet so it never remounts
+// Standalone memoised field
 const EditField = React.memo(
   ({
     label,
@@ -467,11 +359,6 @@ const esS = StyleSheet.create({
 });
 
 // ─── Edit Sheet ──────────────────────────────────────────────────────────────
-// KEY FIX for keyboard: we use a plain ScrollView with
-// keyboardShouldPersistTaps + automaticallyAdjustKeyboardInsets (iOS 15+)
-// and android:windowSoftInputMode=adjustResize in AndroidManifest.
-// The sheet itself expands; inputs scroll into view naturally.
-
 const EditSheet = ({
   visible,
   contact,
@@ -494,7 +381,6 @@ const EditSheet = ({
   };
 
   const [form, setForm] = useState<EditForm>(blankForm);
-  
 
   useEffect(() => {
     if (contact) {
@@ -537,41 +423,29 @@ const EditSheet = ({
       onRequestClose={onClose}
     >
       <View style={shS.overlay}>
-        {/* Dim backdrop — tap to close */}
         <TouchableOpacity
           style={shS.backdrop}
           activeOpacity={1}
           onPress={onClose}
         />
-
-        {/* The sheet itself sits at the bottom and grows with keyboard */}
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={shS.kavWrap}
         >
           <View style={shS.sheet}>
-            {/* Drag handle */}
             <View style={shS.handle} />
-
-            {/* Header */}
             <View style={shS.header}>
               <Text style={shS.title}>Edit Contact</Text>
               <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                 <Icon name="close" size={22} color={colors.muted} />
               </TouchableOpacity>
             </View>
-
-            {/* Scrollable fields
-                automaticallyAdjustKeyboardInsets handles the iOS inset shift.
-                On Android, ensure windowSoftInputMode=adjustResize in
-                AndroidManifest so the sheet shrinks when the keyboard appears. */}
             <ScrollView
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="none"
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingBottom: 60 }}
-              // iOS 15+: the ScrollView shrinks automatically when keyboard appears
-              automaticallyAdjustKeyboardInsets
+              automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
             >
               {SH('Personal')}
               <EditField label="Full Name"   value={form.personName}  onChange={sf('personName')} />
@@ -648,13 +522,13 @@ const shS = StyleSheet.create({
   },
   handle: {
     width: 36, height: 4, borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: '#e0e0e0',
     alignSelf: 'center', marginBottom: 12,
   },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 20, paddingBottom: 14,
-    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.07)',
+    borderBottomWidth: 1, borderBottomColor: '#f0f0f0',
     marginBottom: 4,
   },
   title:     { fontSize: 17, fontWeight: '700', color: '#414040' },
@@ -684,9 +558,9 @@ const ContactDetailModal = ({
   onEdit: (c: ContactDetail) => void;
   onDelete: (id: string | number) => void;
 }) => {
-  const [viewingImage, setViewingImage] = useState<{
-    uri: string | null;
-    label: string;
+  const [viewingImages, setViewingImages] = useState<{
+    images: Array<{ url: string; label: string }>;
+    initialIndex: number;
   } | null>(null);
 
   if (!visible) return null;
@@ -766,6 +640,12 @@ const ContactDetailModal = ({
   const tagStyle   = getTagStyle(tag);
   const frontUri   = buildImageUri(contact.frontImage, contact.frontImageMimeType);
   const backUri    = buildImageUri(contact.backImage, contact.backImageMimeType);
+  
+  // Build images array for viewer
+  const cardImages: { url: any; label: any; }[] = [];
+  if (frontUri) cardImages.push({ url: frontUri, label: 'Front Side' });
+  if (backUri) cardImages.push({ url: backUri, label: 'Back Side' });
+  
   const phones     = [contact.phoneNumber1, contact.phoneNumber2, contact.phoneNumber3].filter(Boolean) as string[];
   const emails     = [contact.email1, contact.email2].filter(Boolean) as string[];
   const websites   = [contact.website1, contact.website2].filter(Boolean) as string[];
@@ -785,6 +665,13 @@ const ContactDetailModal = ({
         },
       ],
     );
+  };
+
+  const handleImagePress = (index: number) => {
+    setViewingImages({
+      images: cardImages,
+      initialIndex: index,
+    });
   };
 
   return (
@@ -847,36 +734,30 @@ const ContactDetailModal = ({
             </View>
 
             {/* Business card images */}
-            <View style={contactsStyles.detailCardsRow}>
-              {[
-                { uri: frontUri, label: 'Front Side', badge: 'Front' },
-                { uri: backUri,  label: 'Back Side',  badge: 'Back' },
-              ].map((card) => (
-                <TouchableOpacity
-                  key={card.badge}
-                  style={contactsStyles.detailCardBox}
-                  onPress={() => setViewingImage({ uri: card.uri, label: card.label })}
-                  activeOpacity={0.85}
-                >
-                  {card.uri ? (
+            {cardImages.length > 0 && (
+              <View style={contactsStyles.detailCardsRow}>
+                {cardImages.map((card, idx) => (
+                  <TouchableOpacity
+                    key={idx}
+                    style={contactsStyles.detailCardBox}
+                    onPress={() => handleImagePress(idx)}
+                    activeOpacity={0.85}
+                  >
                     <Image
-                      source={{ uri: card.uri }}
+                      source={{ uri: card.url }}
                       style={contactsStyles.detailCardImage}
                       resizeMode="cover"
                     />
-                  ) : (
-                    <View style={contactsStyles.detailCardPlaceholder}>
-                      <Icon name="card-outline" size={28} color="rgba(255,255,255,0.35)" />
-                      <Text style={contactsStyles.detailCardPlaceholderText}>{card.badge}</Text>
+                    <View style={contactsStyles.detailCardBadge}>
+                      <Icon name="eye-outline" size={10} color={colors.amberDark} />
+                      <Text style={contactsStyles.detailCardBadgeText}>
+                        {card.label}
+                      </Text>
                     </View>
-                  )}
-                  <View style={contactsStyles.detailCardBadge}>
-                    <Icon name="eye-outline" size={10} color={colors.amberDark} />
-                    <Text style={contactsStyles.detailCardBadgeText}>{card.badge}</Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
 
             <View style={contactsStyles.detailBody}>
               {phones.length > 0 && (
@@ -973,7 +854,7 @@ const ContactDetailModal = ({
                 <SectionCard title="Raw Extracted Text">
                   <View
                     style={{
-                      backgroundColor: 'rgba(255,255,255,0.04)',
+                      backgroundColor: '#f5f5f5',
                       borderRadius: 8,
                       padding: 12,
                       marginTop: 4,
@@ -1024,10 +905,10 @@ const ContactDetailModal = ({
       </View>
 
       <ContactImageViewer
-        visible={!!viewingImage}
-        uri={viewingImage?.uri ?? null}
-        label={viewingImage?.label ?? ''}
-        onClose={() => setViewingImage(null)}
+        visible={!!viewingImages}
+        images={viewingImages?.images || []}
+        initialIndex={viewingImages?.initialIndex || 0}
+        onClose={() => setViewingImages(null)}
       />
     </Modal>
   );
@@ -1106,21 +987,16 @@ const ContactCard = ({
 
 export default function ContactsScreen() {
   const [refreshing, setRefreshing] = useState(false);
-
-  // Search: state → UI, ref → stable value that survives focus cycles
+  const [isExporting, setIsExporting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const searchQueryRef = useRef('');
-  const handleSearchChange = useCallback((text: string) => {
-    searchQueryRef.current = text;
-    setSearchQuery(text);
-  }, []);
-
   const [selectedContact, setSelectedContact] = useState<ContactDetail | null>(null);
   const [loadingDetail, setLoadingDetail]     = useState(false);
   const [detailVisible, setDetailVisible]     = useState(false);
   const [editVisible, setEditVisible]         = useState(false);
   const [editContact, setEditContact]         = useState<ContactDetail | null>(null);
   const [saving, setSaving]                   = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const CONTACTS_PER_PAGE = 10;
 
   const {
     contacts, loading, error,
@@ -1129,17 +1005,39 @@ export default function ContactsScreen() {
     loadMore, total,
   } = useContact(1, 50);
 
-  // Re-fetch on focus WITHOUT clearing search
+  // Pagination logic
+  const filteredContacts = contacts.filter((c) => {
+    const q = searchQuery.toLowerCase();
+    return (
+      q === '' ||
+      c.personName?.toLowerCase().includes(q) ||
+      c.companyName?.toLowerCase().includes(q) ||
+      c.email1?.toLowerCase().includes(q) ||
+      c.email2?.toLowerCase().includes(q)
+    );
+  });
+
+  const indexOfLastContact = currentPage * CONTACTS_PER_PAGE;
+  const indexOfFirstContact = indexOfLastContact - CONTACTS_PER_PAGE;
+  const currentContacts = filteredContacts.slice(indexOfFirstContact, indexOfLastContact);
+  const totalPages = Math.ceil(filteredContacts.length / CONTACTS_PER_PAGE);
+
   useFocusEffect(
     useCallback(() => {
       fetchContacts();
+      setCurrentPage(1);
     }, []),
   );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
 
   const onRefresh = async () => {
     setRefreshing(true);
     await fetchContacts(1);
     setRefreshing(false);
+    setCurrentPage(1);
   };
 
   const handleAdd = () => router.push('/scan');
@@ -1150,6 +1048,10 @@ export default function ContactsScreen() {
       setDetailVisible(false);
       setSelectedContact(null);
       Alert.alert('Success', 'Contact deleted');
+      await fetchContacts();
+      if (currentContacts.length === 1 && currentPage > 1) {
+        setCurrentPage(currentPage - 1);
+      }
     } catch {
       Alert.alert('Error', 'Failed to delete contact');
     }
@@ -1182,28 +1084,48 @@ export default function ContactsScreen() {
     if (!editContact) return;
     setSaving(true);
     try {
-      await updateContactHook(editContact.id, form);
+      // Convert EditForm to CreateContact format by adding image fields
+      const updateData = {
+        ...form,
+        frontImageAsString: editContact.frontImage || '',
+        frontImageMimeType: editContact.frontImageMimeType || '',
+        backImageAsString: editContact.backImage || '',
+        backImageMimeType: editContact.backImageMimeType || '',
+      };
+      await updateContactHook(editContact.id, updateData);
       await fetchContacts();
       setEditVisible(false);
       Alert.alert('Success', 'Contact updated successfully');
-    } catch {
+    } catch (err) {
       Alert.alert('Error', 'Failed to update contact');
     } finally {
       setSaving(false);
     }
   };
 
-  // Simple search filter (no chip filter)
-  const filteredContacts = contacts.filter((c) => {
-    const q = searchQuery.toLowerCase();
-    return (
-      q === '' ||
-      c.personName?.toLowerCase().includes(q) ||
-      c.companyName?.toLowerCase().includes(q) ||
-      c.email1?.toLowerCase().includes(q) ||
-      c.email2?.toLowerCase().includes(q)
-    );
-  });
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      await exportContacts();
+      Alert.alert('Success', 'Contacts exported successfully');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to export contacts');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const nextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const prevPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
 
   if (loading && !refreshing && contacts.length === 0) {
     return (
@@ -1229,12 +1151,6 @@ export default function ContactsScreen() {
             tintColor={colors.amber}
           />
         }
-        onScrollEndDrag={({ nativeEvent }) => {
-          const atBottom =
-            nativeEvent.layoutMeasurement.height + nativeEvent.contentOffset.y >=
-            nativeEvent.contentSize.height - 20;
-          if (atBottom && contacts.length < total) loadMore();
-        }}
         scrollEventThrottle={400}
         contentContainerStyle={{ paddingBottom: 40, backgroundColor: colors.phoneBg, flexGrow: 1 }}
       >
@@ -1249,12 +1165,14 @@ export default function ContactsScreen() {
             <View style={contactsStyles.headerActions}>
               <TouchableOpacity
                 style={contactsStyles.headerBtn}
-                onPress={async () => {
-                  try { await exportContacts(); }
-                  catch { Alert.alert('Error', 'Failed to export contacts'); }
-                }}
+                onPress={handleExport}
+                disabled={isExporting}
               >
-                <Icon name="download" size={14} color={colors.amber} />
+                {isExporting ? (
+                  <ActivityIndicator size="small" color={colors.amber} />
+                ) : (
+                  <Icon name="download" size={14} color={colors.amber} />
+                )}
               </TouchableOpacity>
               <TouchableOpacity style={contactsStyles.headerBtn} onPress={handleAdd}>
                 <Icon name="add-outline" size={14} color={colors.amber} />
@@ -1263,7 +1181,7 @@ export default function ContactsScreen() {
           </View>
         </View>
 
-        {/* Search bar (only filter — no chips) */}
+        {/* Search bar */}
         <View style={contactsStyles.searchWrap}>
           <Icon name="search-outline" size={14} color={colors.muted} style={contactsStyles.searchIcon} />
           <TextInput
@@ -1271,10 +1189,10 @@ export default function ContactsScreen() {
             placeholder="Search by name, company, email..."
             placeholderTextColor={colors.inputPlaceholder}
             value={searchQuery}
-            onChangeText={handleSearchChange}
+            onChangeText={setSearchQuery}
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => handleSearchChange('')} style={{ padding: 6 }}>
+            <TouchableOpacity onPress={() => setSearchQuery('')} style={{ padding: 6 }}>
               <Icon name="close-circle" size={16} color={colors.muted} />
             </TouchableOpacity>
           )}
@@ -1322,21 +1240,54 @@ export default function ContactsScreen() {
 
         {/* List */}
         {!error && filteredContacts.length > 0 && (
-          <View style={contactsStyles.contactList}>
-            {filteredContacts.map((contact) => (
-              <ContactCard
-                key={contact.id}
-                contact={contact}
-                onPress={handleContactPress}
-                onDelete={handleDelete}
-              />
-            ))}
+          <>
+            <View style={contactsStyles.contactList}>
+              {currentContacts.map((contact) => (
+                <ContactCard
+                  key={contact.id}
+                  contact={contact}
+                  onPress={handleContactPress}
+                  onDelete={handleDelete}
+                />
+              ))}
+            </View>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <View style={paginationStyles.container}>
+                <TouchableOpacity
+                  onPress={prevPage}
+                  disabled={currentPage === 1}
+                  style={[paginationStyles.button, currentPage === 1 && paginationStyles.buttonDisabled]}
+                >
+                  <Icon name="chevron-back-outline" size={20} color={currentPage === 1 ? colors.muted : colors.navy} />
+                  <Text style={[paginationStyles.buttonText, currentPage === 1 && { color: colors.muted }]}>Previous</Text>
+                </TouchableOpacity>
+
+                <View style={paginationStyles.pageInfo}>
+                  <Icon name="grid-outline" size={14} color={colors.amber} />
+                  <Text style={paginationStyles.pageText}>
+                    Page {currentPage} of {totalPages}
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  onPress={nextPage}
+                  disabled={currentPage === totalPages}
+                  style={[paginationStyles.button, currentPage === totalPages && paginationStyles.buttonDisabled]}
+                >
+                  <Text style={[paginationStyles.buttonText, currentPage === totalPages && { color: colors.muted }]}>Next</Text>
+                  <Icon name="chevron-forward-outline" size={20} color={currentPage === totalPages ? colors.muted : colors.navy} />
+                </TouchableOpacity>
+              </View>
+            )}
+
             {loading && contacts.length < total && (
               <View style={{ padding: 20, alignItems: 'center' }}>
                 <ActivityIndicator size="small" color={colors.amber} />
               </View>
             )}
-          </View>
+          </>
         )}
       </ScrollView>
 
@@ -1361,3 +1312,47 @@ export default function ContactsScreen() {
     </View>
   );
 }
+
+const paginationStyles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+    marginTop: 24,
+    marginBottom: 16,
+    paddingVertical: 16,
+  },
+  button: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: colors.amber,
+  },
+  buttonDisabled: {
+    backgroundColor: colors.border,
+    opacity: 0.5,
+  },
+  buttonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.navy,
+  },
+  pageInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.phoneBg,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  pageText: {
+    fontSize: 13,
+    color: colors.text,
+    fontWeight: '500',
+  },
+});

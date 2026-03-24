@@ -1,4 +1,4 @@
-// app/(tabs)/contacts.tsx  ── WEB ONLY
+// app/contacts-web.tsx
 import { contactsStyles } from '@/components/styles/contactStyles';
 import { colors } from '@/constants/colors';
 import { ContactDetail } from '@/types/contact';
@@ -21,9 +21,26 @@ import { useContact } from '@/hooks/useContact';
 import { router, useFocusEffect } from 'expo-router';
 import { exportContactsWeb } from '@/services/contact';
 import { SidebarLayout } from './sidebar';
+import { useProfile } from '@/hooks/useProfile';
+import { getRoles } from '@/utils/tokenStorage';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const getInitials = (name: string) => {
+  if (!name) return 'U';
+  return name.split(' ').map((n) => n[0]).join('').toUpperCase().substring(0, 2);
+};
 
+const getAvatarColor = (name: string) => {
+  const palette = [
+    '#1e3a5f', '#1a4731', '#3b1f6e', '#3d1a1a', '#1a3a3a',
+    '#5f2e1e', '#2e1e5f', '#1e5f2e', '#5f1e4a', '#4a1e5f',
+  ];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return palette[Math.abs(hash) % palette.length];
+};
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 type ToastType = 'success' | 'error' | 'info';
@@ -93,23 +110,6 @@ const ConfirmDialog = ({ visible, title, message, confirmLabel = 'Confirm', dang
   );
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-const getInitials = (name: string) => {
-  if (!name) return '??';
-  return name.split(' ').map((n) => n[0]).join('').toUpperCase().substring(0, 2);
-};
-
-const AVATAR_COLORS = [
-  '#1e3a5f', '#1a4731', '#3b1f6e', '#3d1a1a', '#1a3a3a',
-  '#5f2e1e', '#2e1e5f', '#1e5f2e', '#5f1e4a', '#4a1e5f',
-];
-
-const getAvatarColor = (name: string) => {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-};
-
 const formatDate = (dateString: string) => {
   const date = new Date(dateString);
   const now = new Date();
@@ -126,25 +126,29 @@ const buildImageUri = (base64?: string, mime?: string, url?: string) => {
   return null;
 };
 
-// ─── Image Viewer (zoom + rotate, web-native) ─────────────────────────────────
-const ImageViewer = ({ visible, uri, label, onClose }: {
-  visible: boolean; uri: string | null; label: string; onClose: () => void;
+// ─── Image Viewer with Next/Previous Navigation ─────────────────────────────────
+const ImageViewer = ({ visible, images, currentIndex, label, onClose, onNext, onPrev }: {
+  visible: boolean; images: Array<{ uri: string | null; label: string }>; currentIndex: number;
+  label: string; onClose: () => void; onNext: () => void; onPrev: () => void;
 }) => {
-  const [scale, setScale]   = useState(1);
+  const [scale, setScale] = useState(1);
   const [rotate, setRotate] = useState(0);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const dragRef = useRef({ active: false, mx: 0, my: 0, ox: 0, oy: 0 });
 
   useEffect(() => {
     if (visible) { setScale(1); setRotate(0); setOffset({ x: 0, y: 0 }); }
-  }, [visible]);
+  }, [visible, currentIndex]);
 
   if (!visible) return null;
 
-  const zoomIn  = () => setScale((s) => Math.min(5, +(s + 0.25).toFixed(2)));
+  const currentImage = images[currentIndex];
+  const uri = currentImage?.uri;
+
+  const zoomIn = () => setScale((s) => Math.min(5, +(s + 0.25).toFixed(2)));
   const zoomOut = () => setScale((s) => Math.max(0.25, +(s - 0.25).toFixed(2)));
   const rotateCCW = () => setRotate((r) => r - 90);
-  const rotateCW  = () => setRotate((r) => r + 90);
+  const rotateCW = () => setRotate((r) => r + 90);
   const reset = () => { setScale(1); setRotate(0); setOffset({ x: 0, y: 0 }); };
 
   const onWheel = (e: any) => {
@@ -169,7 +173,6 @@ const ImageViewer = ({ visible, uri, label, onClose }: {
     <TouchableOpacity
       key={title}
       onPress={action}
-      title={title}
       style={{
         width: 36, height: 36, borderRadius: 9,
         backgroundColor: 'rgba(255,255,255,0.13)',
@@ -181,10 +184,14 @@ const ImageViewer = ({ visible, uri, label, onClose }: {
     </TouchableOpacity>
   );
 
+  const hasPrev = currentIndex > 0 && images[currentIndex - 1]?.uri;
+  const hasNext = currentIndex < images.length - 1 && images[currentIndex + 1]?.uri;
+
   return (
     <Modal visible animationType="fade" transparent onRequestClose={onClose}>
       <View
         style={{ flex: 1, backgroundColor: 'rgba(5,5,10,0.97)', justifyContent: 'center', alignItems: 'center' }}
+        // @ts-ignore - Mouse events for web platform
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
         onMouseLeave={onMouseUp}
@@ -198,17 +205,17 @@ const ImageViewer = ({ visible, uri, label, onClose }: {
           backdropFilter: 'blur(12px)',
         } as any}>
           <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 14, fontWeight: '700', letterSpacing: 0.3 }}>
-            {label}
+            {label} · {currentIndex + 1}/{images.length}
           </Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, marginRight: 6 }}>
               {Math.round(scale * 100)}% · {((rotate % 360) + 360) % 360}°
             </Text>
-            {toolBtn('remove-outline', zoomOut,   'Zoom Out')}
-            {toolBtn('add-outline',    zoomIn,    'Zoom In')}
+            {toolBtn('remove-outline', zoomOut, 'Zoom Out')}
+            {toolBtn('add-outline', zoomIn, 'Zoom In')}
             {toolBtn('arrow-undo-outline', rotateCCW, 'Rotate Left')}
-            {toolBtn('arrow-redo-outline', rotateCW,  'Rotate Right')}
-            {toolBtn('scan-outline',   reset,     'Reset')}
+            {toolBtn('arrow-redo-outline', rotateCW, 'Rotate Right')}
+            {toolBtn('scan-outline', reset, 'Reset')}
             <View style={{ width: 1, height: 24, backgroundColor: 'rgba(255,255,255,0.12)', marginHorizontal: 4 }} />
             <TouchableOpacity
               onPress={onClose}
@@ -219,8 +226,37 @@ const ImageViewer = ({ visible, uri, label, onClose }: {
           </View>
         </View>
 
+        {/* Previous Button */}
+        {hasPrev && (
+          <TouchableOpacity
+            onPress={onPrev}
+            style={{
+              position: 'absolute' as any, left: 24, top: '50%', transform: [{ translateY: -25 }],
+              width: 50, height: 50, borderRadius: 25, backgroundColor: 'rgba(0,0,0,0.6)',
+              justifyContent: 'center', alignItems: 'center', zIndex: 10, cursor: 'pointer',
+            } as any}
+          >
+            <Icon name="chevron-back" size={28} color="#fff" />
+          </TouchableOpacity>
+        )}
+
+        {/* Next Button */}
+        {hasNext && (
+          <TouchableOpacity
+            onPress={onNext}
+            style={{
+              position: 'absolute' as any, right: 24, top: '50%', transform: [{ translateY: -25 }],
+              width: 50, height: 50, borderRadius: 25, backgroundColor: 'rgba(0,0,0,0.6)',
+              justifyContent: 'center', alignItems: 'center', zIndex: 10, cursor: 'pointer',
+            } as any}
+          >
+            <Icon name="chevron-forward" size={28} color="#fff" />
+          </TouchableOpacity>
+        )}
+
         {/* Image area */}
         <View
+          // @ts-ignore - Mouse events for web platform
           onMouseDown={onMouseDown}
           onWheel={onWheel}
           style={{
@@ -237,6 +273,7 @@ const ImageViewer = ({ visible, uri, label, onClose }: {
               source={{ uri }}
               style={{ width: 820, height: 520, borderRadius: 6 }}
               resizeMode="contain"
+              // @ts-ignore - draggable for web platform
               draggable={false}
             />
           ) : (
@@ -249,7 +286,7 @@ const ImageViewer = ({ visible, uri, label, onClose }: {
 
         {/* Hint */}
         <Text style={{ position: 'absolute' as any, bottom: 18, color: 'rgba(255,255,255,0.2)', fontSize: 11 } as any}>
-          Scroll to zoom · Drag to pan · Toolbar to rotate
+          Scroll to zoom · Drag to pan · Toolbar to rotate · Use arrows to navigate
         </Text>
       </View>
     </Modal>
@@ -417,7 +454,7 @@ const DetailPanel = ({ visible, contact, loading: loadingDetail, onClose, onEdit
   onClose: () => void; onEdit: (c: ContactDetail) => void;
   onDeleteRequest: (id: string | number, name: string) => void;
 }) => {
-  const [viewingImage, setViewingImage] = useState<{ uri: string | null; label: string } | null>(null);
+  const [viewingImage, setViewingImage] = useState<{ images: Array<{ uri: string | null; label: string }>; currentIndex: number } | null>(null);
 
   const InfoRow = ({ icon, label, value, href }: { icon: string; label: string; value: string; href?: string }) => (
     <View style={contactsStyles.detailRow}>
@@ -471,10 +508,19 @@ const DetailPanel = ({ visible, contact, loading: loadingDetail, onClose, onEdit
 
   const frontUri   = buildImageUri(contact.frontImage, contact.frontImageMimeType);
   const backUri    = buildImageUri(contact.backImage,  contact.backImageMimeType);
+  const cardImages = [
+    { uri: frontUri, label: 'Front' },
+    { uri: backUri, label: 'Back' },
+  ].filter(img => img.uri !== null);
+
   const phones     = [contact.phoneNumber1, contact.phoneNumber2, contact.phoneNumber3].filter(Boolean) as string[];
   const emails     = [contact.email1, contact.email2].filter(Boolean) as string[];
   const websites   = [contact.website1, contact.website2].filter(Boolean) as string[];
   const services   = contact.servicesCsv ? contact.servicesCsv.split(',').map((s) => s.trim()).filter(Boolean) : [];
+
+  const handleImageClick = (index: number) => {
+    setViewingImage({ images: cardImages, currentIndex: index });
+  };
 
   return (
     <View style={panelStyle}>
@@ -518,32 +564,33 @@ const DetailPanel = ({ visible, contact, loading: loadingDetail, onClose, onEdit
           <Text style={contactsStyles.detailName}>{personName}</Text>
           <Text style={contactsStyles.detailDesignation}>{contact.designation ?? '—'}</Text>
           {contact.companyName && <Text style={contactsStyles.detailCompany}>{contact.companyName}</Text>}
-     
         </View>
 
         {/* Card images */}
-        <View style={[contactsStyles.detailCardsRow, { paddingHorizontal: 14, gap: 10 }]}>
-          {[{ uri: frontUri, label: 'Front' }, { uri: backUri, label: 'Back' }].map(({ uri, label }) => (
-            <TouchableOpacity
-              key={label}
-              style={[contactsStyles.detailCardBox, { cursor: 'zoom-in' } as any]}
-              onPress={() => setViewingImage({ uri, label })}
-              activeOpacity={0.85}
-            >
-              {uri
-                ? <Image source={{ uri }} style={contactsStyles.detailCardImage} resizeMode="cover" />
-                : <View style={contactsStyles.detailCardPlaceholder}>
-                    <Icon name="card-outline" size={22} color="rgba(255,255,255,0.3)" />
-                    <Text style={contactsStyles.detailCardPlaceholderText}>{label}</Text>
-                  </View>
-              }
-              <View style={contactsStyles.detailCardBadge}>
-                <Icon name="eye-outline" size={9} color={colors.amberDark} />
-                <Text style={contactsStyles.detailCardBadgeText}>{label}</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
+        {cardImages.length > 0 && (
+          <View style={[contactsStyles.detailCardsRow, { paddingHorizontal: 14, gap: 10 }]}>
+            {cardImages.map((img, idx) => (
+              <TouchableOpacity
+                key={idx}
+                style={[contactsStyles.detailCardBox, { cursor: 'zoom-in' } as any]}
+                onPress={() => handleImageClick(idx)}
+                activeOpacity={0.85}
+              >
+                {img.uri
+                  ? <Image source={{ uri: img.uri }} style={contactsStyles.detailCardImage} resizeMode="cover" />
+                  : <View style={contactsStyles.detailCardPlaceholder}>
+                      <Icon name="card-outline" size={22} color="rgba(255,255,255,0.3)" />
+                      <Text style={contactsStyles.detailCardPlaceholderText}>{img.label}</Text>
+                    </View>
+                }
+                <View style={contactsStyles.detailCardBadge}>
+                  <Icon name="eye-outline" size={9} color={colors.amberDark} />
+                  <Text style={contactsStyles.detailCardBadgeText}>{img.label}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
         {/* Sections */}
         <View style={[contactsStyles.detailBody, { paddingHorizontal: 14 }]}>
@@ -608,9 +655,12 @@ const DetailPanel = ({ visible, contact, loading: loadingDetail, onClose, onEdit
 
       <ImageViewer
         visible={!!viewingImage}
-        uri={viewingImage?.uri ?? null}
-        label={viewingImage?.label ?? ''}
+        images={viewingImage?.images || []}
+        currentIndex={viewingImage?.currentIndex || 0}
+        label={`${personName} - ${viewingImage?.images[viewingImage?.currentIndex]?.label || 'Card'}`}
         onClose={() => setViewingImage(null)}
+        onNext={() => viewingImage && setViewingImage({ ...viewingImage, currentIndex: viewingImage.currentIndex + 1 })}
+        onPrev={() => viewingImage && setViewingImage({ ...viewingImage, currentIndex: viewingImage.currentIndex - 1 })}
       />
     </View>
   );
@@ -622,8 +672,6 @@ const ContactCard = ({ contact, onPress, onDeleteRequest, selected }: {
   onDeleteRequest: (id: string | number, name: string) => void; selected?: boolean;
 }) => {
   const personName = contact.personName ?? 'Unknown';
-  const tag        =contact.designation;
-
 
   return (
     <TouchableOpacity
@@ -653,7 +701,6 @@ const ContactCard = ({ contact, onPress, onDeleteRequest, selected }: {
             <Text style={contactsStyles.contactRowText} numberOfLines={1}>{contact.phoneNumber1 ?? contact.phoneNumber2 ?? 'No phone'}</Text>
           </View>
         </View>
-   
       </View>
 
       <View style={contactsStyles.contactRight}>
@@ -669,29 +716,79 @@ const ContactCard = ({ contact, onPress, onDeleteRequest, selected }: {
   );
 };
 
+// ─── Search Input Component ─────────────────────────────────────────────────
+const SearchInput = React.memo(({ value, onChange }: { value: string; onChange: (text: string) => void }) => {
+  const inputRef = useRef<any>(null);
+  
+  useEffect(() => {
+    // Keep focus when component updates
+    if (inputRef.current && typeof inputRef.current.focus === 'function') {
+      inputRef.current.focus();
+    }
+  }, []);
+
+  return (
+    <View style={{ flex: 1, position: 'relative' }}>
+      <Icon name="search-outline" size={15} color={colors.muted}
+        style={{ position: 'absolute', left: 14, top: 11, zIndex: 1 }} />
+      <TextInput
+        ref={inputRef}
+        style={[contactsStyles.searchInput, { paddingLeft: 44, paddingVertical: 10, fontSize: 13, outlineStyle: 'none' } as any]}
+        placeholder="Search name, company, email…"
+        placeholderTextColor={colors.inputPlaceholder}
+        value={value}
+        onChangeText={onChange}
+        // @ts-ignore - web-specific props
+        autoFocus={true}
+        // @ts-ignore
+        autoCorrect="off"
+        // @ts-ignore
+        spellCheck={false}
+        autoCapitalize="none"
+      />
+      {value.length > 0 && (
+        <TouchableOpacity
+          onPress={() => onChange('')}
+          style={{ position: 'absolute', right: 12, top: 10, cursor: 'pointer' } as any}
+        >
+          <Icon name="close-circle" size={17} color={colors.muted} />
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+});
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function ContactsScreen() {
-
+  const { profile, loading: profileLoading } = useProfile();
+  const [isAdmin, setIsAdmin] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing]   = useState(false);
   const [selectedId, setSelectedId]   = useState<string | number | null>(null);
-
   const [selectedContact, setSelectedContact] = useState<ContactDetail | null>(null);
   const [loadingDetail, setLoadingDetail]     = useState(false);
   const [detailVisible, setDetailVisible]     = useState(false);
-
   const [editVisible, setEditVisible] = useState(false);
   const [editContact, setEditContact] = useState<ContactDetail | null>(null);
   const [saving, setSaving]           = useState(false);
-
   const [confirmDelete, setConfirmDelete] = useState<{ id: string | number; name: string } | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
   const { toast, show: showToast } = useToast();
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const CONTACTS_PER_PAGE = 12; // 3 cards per row * 4 rows = 12 contacts per page
+  const CONTACTS_PER_PAGE = 12;
 
-  const { contacts, loading, error, fetchContacts, fetchContact, removeContact, editContact: updateContactHook, loadMore, total } = useContact(1, 50);
+  const { contacts, loading, error, fetchContacts, fetchContact, removeContact, editContact: updateContactHook, total } = useContact(1, 50);
+
+  // Check admin role
+  useEffect(() => {
+    const checkRole = async () => {
+      const roles = await getRoles();
+      if (roles?.includes("Admin")) setIsAdmin(true);
+    };
+    checkRole();
+  }, []);
 
   useFocusEffect(useCallback(() => { fetchContacts(); setCurrentPage(1); }, []));
 
@@ -743,7 +840,6 @@ export default function ContactsScreen() {
         setDetailVisible(false); setSelectedContact(null); setSelectedId(null);
       }
       showToast('Contact deleted', 'success');
-      // Refetch contacts and reset to page 1 if current page becomes empty
       await fetchContacts();
       if (currentContacts.length === 1 && currentPage > 1) {
         setCurrentPage(currentPage - 1);
@@ -776,34 +872,64 @@ export default function ContactsScreen() {
     }
   };
 
-  // Go to next page
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      await exportContactsWeb();
+      showToast('Export completed successfully', 'success');
+    } catch (error) {
+      showToast('Export failed. Please try again.', 'error');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const nextPage = () => {
     if (currentPage < totalPages) {
       setCurrentPage(currentPage + 1);
     }
   };
 
-  // Go to previous page
   const prevPage = () => {
     if (currentPage > 1) {
       setCurrentPage(currentPage - 1);
     }
   };
+  const [roles, setRoles] = useState<string[] | null>(null);
 
-  return (
-    <SidebarLayout>
-      <View style={{ flex: 1, flexDirection: 'row', backgroundColor: colors.phoneBg }}>
+  useEffect(() => {
+    const loadRoles = async () => {
+      const storedRoles = await getRoles();
+      setRoles(storedRoles);
+    };
+    loadRoles();
+  }, []);
+  
+  // Get user details for sidebar
+  const getUserFullName = () => profile?.userName || "User";
+  const getUserInitials = () => profile?.userName ? getInitials(profile.userName) : "U";
+  const getUserAvatarColor = () => profile?.userName ? getAvatarColor(profile.userName) : colors.amber;
+
+  const ContactsContent = () => {
+    if (profileLoading) {
+      return (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={colors.amber} />
+        </View>
+      );
+    }
+
+    return (
+      <View style={{ flex: 1, flexDirection: 'column', backgroundColor: colors.phoneBg }}>
         <StatusBar barStyle="light-content" />
 
-        {/* ── Left: contacts list ── */}
-        <View style={{ flex: 1, flexDirection: 'column', overflow: 'hidden' as any, minWidth: 0 }}>
-
+        {/* ── Fixed Header Section ── */}
+        <View style={{ flexShrink: 0 }}>
           {/* Page header */}
           <View style={{
             backgroundColor: colors.navy,
             paddingHorizontal: 32, paddingTop: 26, paddingBottom: 22,
             flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-            flexShrink: 0,
           }}>
             <View>
               <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' }}>
@@ -820,231 +946,205 @@ export default function ContactsScreen() {
                 <Text style={{ color: colors.amber, fontSize: 12, fontWeight: '700' }}>{total} total</Text>
               </View>
               <TouchableOpacity
-                onPress={async () => { try { await exportContactsWeb(); } catch { showToast('Export failed', 'error'); } }}
-                style={[contactsStyles.headerBtn, { cursor: 'pointer' } as any]}
+                onPress={handleExport}
+                disabled={isExporting}
+                style={[contactsStyles.headerBtn, { cursor: 'pointer', opacity: isExporting ? 0.6 : 1 } as any]}
               >
-                <Icon name="download-outline" size={16} color={colors.amber} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => router.push('/scan')}
-                style={{
-                  flexDirection: 'row', alignItems: 'center', gap: 7,
-                  backgroundColor: colors.amber, borderRadius: 11,
-                  paddingHorizontal: 16, paddingVertical: 10,
-                  cursor: 'pointer',
-                } as any}
-              >
-                <Icon name="add" size={17} color={colors.navy} />
-                <Text style={{ color: colors.navy, fontSize: 13, fontWeight: '800' }}>Add Contact</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Toolbar */}
-     {/* Wrapper to center content */}
-<View style={{ width: '100%', alignItems: 'center', backgroundColor: '#fff' }}>
-  <View style={{
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    width: '100%',
-    maxWidth: 1200,
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    flexShrink: 0,
-  }}>
-
-
-            <View style={{ flex: 1, position: 'relative' }}>
-              <Icon name="search-outline" size={15} color={colors.muted}
-                style={{ position: 'absolute', left: 14, top: 11, zIndex: 1 }} />
-              <TextInput
-                style={[contactsStyles.searchInput, { paddingLeft: 44, paddingVertical: 10, fontSize: 13, outlineStyle: 'none' } as any]}
-                placeholder="Search name, company, email…"
-                placeholderTextColor={colors.inputPlaceholder}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-              />
-              {searchQuery.length > 0 && (
-                <TouchableOpacity
-                  onPress={() => setSearchQuery('')}
-                  style={{ position: 'absolute', right: 12, top: 10, cursor: 'pointer' } as any}
-                >
-                  <Icon name="close-circle" size={17} color={colors.muted} />
-                </TouchableOpacity>
-              )}
-            </View>
-           
-          </View>
-</View>
-<View style={{ width: '100%', alignItems: 'center' }}>
-   <View style={{ width: '100%', maxWidth: 1200 }}>
-          {/* Count row */}
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 32, paddingVertical: 10, flexShrink: 0 }}>
-            <Text style={contactsStyles.countText}>
-              <Text style={contactsStyles.countStrong}>{filteredContacts.length}</Text> of {total} contacts
-              {searchQuery ? <Text style={{ color: colors.amberDark }}> · "{searchQuery}"</Text> : null}
-            </Text>
-            <TouchableOpacity style={contactsStyles.sortBtn}>
-              <Icon name="swap-vertical-outline" size={11} color={colors.amberDark} />
-              <Text style={contactsStyles.sortText}>Newest</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Cards grid */}
-          <ScrollView
-            style={{ flex: 1 }}
-            showsVerticalScrollIndicator={false}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.amber]} tintColor={colors.amber} />}
-            scrollEventThrottle={400}
-            contentContainerStyle={{ paddingHorizontal: 32, paddingTop: 4, paddingBottom: 40 }}
-          >
-            {loading && !refreshing && contacts.length === 0 && (
-              <View style={{ padding: 60, alignItems: 'center' }}>
-                <ActivityIndicator size="large" color={colors.amber} />
-                <Text style={{ color: colors.muted, marginTop: 14 }}>Loading contacts…</Text>
-              </View>
-            )}
-
-            {error && (
-              <View style={{ padding: 40, alignItems: 'center' }}>
-                <Icon name="warning-outline" size={36} color={colors.error} />
-                <Text style={{ color: colors.error, marginTop: 10, marginBottom: 14 }}>{error}</Text>
-                <TouchableOpacity onPress={() => fetchContacts(1)} style={{ paddingHorizontal: 20, paddingVertical: 10, backgroundColor: colors.amber, borderRadius: 10, cursor: 'pointer' } as any}>
-                  <Text style={{ color: colors.navy, fontWeight: '700' }}>Retry</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {!error && !loading && filteredContacts.length === 0 && (
-              <View style={{ padding: 60, alignItems: 'center' }}>
-                <Icon name="people-outline" size={52} color={colors.muted} />
-                <Text style={{ marginTop: 14, color: colors.muted, fontSize: 15 }}>
-                  {searchQuery ? `No results for "${searchQuery}"` : 'No contacts yet.'}
-                </Text>
-                {searchQuery && (
-                  <TouchableOpacity onPress={() => setSearchQuery('')} style={{ marginTop: 12, paddingHorizontal: 18, paddingVertical: 9, backgroundColor: colors.amber, borderRadius: 9, cursor: 'pointer' } as any}>
-                    <Text style={{ color: colors.navy, fontWeight: '700', fontSize: 13 }}>Clear search</Text>
-                  </TouchableOpacity>
+                {isExporting ? (
+                  <ActivityIndicator size="small" color={colors.amber} />
+                ) : (
+                  <Icon name="download-outline" size={16} color={colors.amber} />
                 )}
-              </View>
-            )}
-
-            {!error && currentContacts.length > 0 &&
-              Array.from({ length: Math.ceil(currentContacts.length / 3) }).map((_, row) => (
-                <View key={row} style={{ flexDirection: 'row', gap: 14, marginBottom: 14 }}>
-                  {currentContacts.slice(row * 3, row * 3 + 3).map((c) => (
-                    <View key={c.id} style={{ flex: 1 }}>
-                      <ContactCard
-                        contact={c}
-                        onPress={handleContactPress}
-                        onDeleteRequest={handleDeleteRequest}
-                        selected={selectedId === c.id && detailVisible}
-                      />
-                    </View>
-                  ))}
-                  {Array.from({ length: 3 - currentContacts.slice(row * 3, row * 3 + 3).length }).map((_, i) => (
-                    <View key={i} style={{ flex: 1 }} />
-                  ))}
-                </View>
-              ))
-            }
-
-            {/* Pagination Controls */}
-            {totalPages > 1 && (
-              <View style={{
-                flexDirection: 'row',
-                justifyContent: 'center',
-                alignItems: 'center',
-                gap: 16,
-                marginTop: 24,
-                marginBottom: 16,
-                paddingVertical: 16,
-              }}>
-                <TouchableOpacity
-                  onPress={prevPage}
-                  disabled={currentPage === 1}
-                  style={[
-                    {
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 8,
-                      paddingHorizontal: 16,
-                      paddingVertical: 8,
-                      borderRadius: 10,
-                      backgroundColor: currentPage === 1 ? colors.border : colors.amber,
-                      cursor: 'pointer',
-                      opacity: currentPage === 1 ? 0.5 : 1,
-                    } as any,
-                    currentPage === 1 && { cursor: 'default' } as any,
-                  ]}
-                >
-                  <Icon name="chevron-back-outline" size={16} color={currentPage === 1 ? colors.muted : colors.navy} />
-                  <Text style={{
-                    fontSize: 13,
-                    fontWeight: '600',
-                    color: currentPage === 1 ? colors.muted : colors.navy,
-                  }}>Previous</Text>
-                </TouchableOpacity>
-
-                <View style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 8,
-                  backgroundColor: colors.phoneBg,
-                  paddingHorizontal: 16,
-                  paddingVertical: 6,
-                  borderRadius: 20,
-                }}>
-                  <Icon name="grid-outline" size={14} color={colors.amber} />
-                  <Text style={{
-                    fontSize: 13,
-                    color: colors.text,
-                    fontWeight: '500',
-                  }}>
-                    Page {currentPage} of {totalPages}
-                  </Text>
-                </View>
-
-                <TouchableOpacity
-                  onPress={nextPage}
-                  disabled={currentPage === totalPages}
-                  style={[
-                    {
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 8,
-                      paddingHorizontal: 16,
-                      paddingVertical: 8,
-                      borderRadius: 10,
-                      backgroundColor: currentPage === totalPages ? colors.border : colors.amber,
-                      cursor: 'pointer',
-                      opacity: currentPage === totalPages ? 0.5 : 1,
-                    } as any,
-                    currentPage === totalPages && { cursor: 'default' } as any,
-                  ]}
-                >
-                  <Text style={{
-                    fontSize: 13,
-                    fontWeight: '600',
-                    color: currentPage === totalPages ? colors.muted : colors.navy,
-                  }}>Next</Text>
-                  <Icon name="chevron-forward-outline" size={16} color={currentPage === totalPages ? colors.muted : colors.navy} />
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {loading && contacts.length < total && (
-              <View style={{ padding: 20, alignItems: 'center' }}>
-                <ActivityIndicator size="small" color={colors.amber} />
-              </View>
-            )}
-          </ScrollView>
+              </TouchableOpacity>
+            </View>
           </View>
+
+          {/* Toolbar - Centered */}
+          <View style={{ width: '100%', alignItems: 'center', backgroundColor: '#fff' }}>
+            <View style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 10,
+              width: '100%',
+              maxWidth: 1200,
+              paddingHorizontal: 32,
+              paddingVertical: 14,
+              borderBottomWidth: 1,
+              borderBottomColor: colors.border,
+            }}>
+              <SearchInput value={searchQuery} onChange={setSearchQuery} />
+            </View>
+          </View>
+
+          {/* Count row */}
+          <View style={{ width: '100%', alignItems: 'center', backgroundColor: colors.phoneBg }}>
+            <View style={{ width: '100%', maxWidth: 1200, paddingHorizontal: 32 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 }}>
+                <Text style={contactsStyles.countText}>
+                  <Text style={contactsStyles.countStrong}>{filteredContacts.length}</Text> of {total} contacts
+                  {searchQuery ? <Text style={{ color: colors.amberDark }}> · "{searchQuery}"</Text> : null}
+                </Text>
+                <TouchableOpacity style={contactsStyles.sortBtn}>
+                  <Icon name="swap-vertical-outline" size={11} color={colors.amberDark} />
+                  <Text style={contactsStyles.sortText}>Newest</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
         </View>
+
+        {/* ── Scrollable Content ── */}
+        <ScrollView
+          style={{ flex: 1 }}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.amber]} tintColor={colors.amber} />}
+          scrollEventThrottle={400}
+        >
+          <View style={{ width: '100%', alignItems: 'center' }}>
+            <View style={{ width: '100%', maxWidth: 1200, paddingHorizontal: 32, paddingTop: 4, paddingBottom: 40 }}>
+              {loading && !refreshing && contacts.length === 0 && (
+                <View style={{ padding: 60, alignItems: 'center' }}>
+                  <ActivityIndicator size="large" color={colors.amber} />
+                  <Text style={{ color: colors.muted, marginTop: 14 }}>Loading contacts…</Text>
+                </View>
+              )}
+
+              {error && (
+                <View style={{ padding: 40, alignItems: 'center' }}>
+                  <Icon name="warning-outline" size={36} color={colors.error} />
+                  <Text style={{ color: colors.error, marginTop: 10, marginBottom: 14 }}>{error}</Text>
+                  <TouchableOpacity onPress={() => fetchContacts(1)} style={{ paddingHorizontal: 20, paddingVertical: 10, backgroundColor: colors.amber, borderRadius: 10, cursor: 'pointer' } as any}>
+                    <Text style={{ color: colors.navy, fontWeight: '700' }}>Retry</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {!error && !loading && filteredContacts.length === 0 && (
+                <View style={{ padding: 60, alignItems: 'center' }}>
+                  <Icon name="people-outline" size={52} color={colors.muted} />
+                  <Text style={{ marginTop: 14, color: colors.muted, fontSize: 15 }}>
+                    {searchQuery ? `No results for "${searchQuery}"` : 'No contacts yet.'}
+                  </Text>
+                  {searchQuery && (
+                    <TouchableOpacity onPress={() => setSearchQuery('')} style={{ marginTop: 12, paddingHorizontal: 18, paddingVertical: 9, backgroundColor: colors.amber, borderRadius: 9, cursor: 'pointer' } as any}>
+                      <Text style={{ color: colors.navy, fontWeight: '700', fontSize: 13 }}>Clear search</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+
+              {!error && currentContacts.length > 0 &&
+                Array.from({ length: Math.ceil(currentContacts.length / 3) }).map((_, row) => (
+                  <View key={row} style={{ flexDirection: 'row', gap: 14, marginBottom: 14 }}>
+                    {currentContacts.slice(row * 3, row * 3 + 3).map((c) => (
+                      <View key={c.id} style={{ flex: 1 }}>
+                        <ContactCard
+                          contact={c}
+                          onPress={handleContactPress}
+                          onDeleteRequest={handleDeleteRequest}
+                          selected={selectedId === c.id && detailVisible}
+                        />
+                      </View>
+                    ))}
+                    {Array.from({ length: 3 - currentContacts.slice(row * 3, row * 3 + 3).length }).map((_, i) => (
+                      <View key={i} style={{ flex: 1 }} />
+                    ))}
+                  </View>
+                ))
+              }
+
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <View style={{
+                  flexDirection: 'row',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: 16,
+                  marginTop: 24,
+                  marginBottom: 16,
+                  paddingVertical: 16,
+                }}>
+                  <TouchableOpacity
+                    onPress={prevPage}
+                    disabled={currentPage === 1}
+                    style={[
+                      {
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 8,
+                        paddingHorizontal: 16,
+                        paddingVertical: 8,
+                        borderRadius: 10,
+                        backgroundColor: currentPage === 1 ? colors.border : colors.amber,
+                        cursor: 'pointer',
+                        opacity: currentPage === 1 ? 0.5 : 1,
+                      } as any,
+                      currentPage === 1 && { cursor: 'default' } as any,
+                    ]}
+                  >
+                    <Icon name="chevron-back-outline" size={16} color={currentPage === 1 ? colors.muted : colors.navy} />
+                    <Text style={{
+                      fontSize: 13,
+                      fontWeight: '600',
+                      color: currentPage === 1 ? colors.muted : colors.navy,
+                    }}>Previous</Text>
+                  </TouchableOpacity>
+
+                  <View style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 8,
+                    backgroundColor: colors.phoneBg,
+                    paddingHorizontal: 16,
+                    paddingVertical: 6,
+                    borderRadius: 20,
+                  }}>
+                    <Icon name="grid-outline" size={14} color={colors.amber} />
+                    <Text style={{
+                      fontSize: 13,
+                      color: colors.text,
+                      fontWeight: '500',
+                    }}>
+                      Page {currentPage} of {totalPages}
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    onPress={nextPage}
+                    disabled={currentPage === totalPages}
+                    style={[
+                      {
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 8,
+                        paddingHorizontal: 16,
+                        paddingVertical: 8,
+                        borderRadius: 10,
+                        backgroundColor: currentPage === totalPages ? colors.border : colors.amber,
+                        cursor: 'pointer',
+                        opacity: currentPage === totalPages ? 0.5 : 1,
+                      } as any,
+                      currentPage === totalPages && { cursor: 'default' } as any,
+                    ]}
+                  >
+                    <Text style={{
+                      fontSize: 13,
+                      fontWeight: '600',
+                      color: currentPage === totalPages ? colors.muted : colors.navy,
+                    }}>Next</Text>
+                    <Icon name="chevron-forward-outline" size={16} color={currentPage === totalPages ? colors.muted : colors.navy} />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {loading && contacts.length < total && (
+                <View style={{ padding: 20, alignItems: 'center' }}>
+                  <ActivityIndicator size="small" color={colors.amber} />
+                </View>
+              )}
+            </View>
+          </View>
+        </ScrollView>
 
         {/* ── Right: detail panel ── */}
         <DetailPanel
@@ -1056,7 +1156,18 @@ export default function ContactsScreen() {
           onDeleteRequest={handleDeleteRequest}
         />
       </View>
+    );
+  };
 
+  return (
+    <SidebarLayout
+      isAdmin={isAdmin}
+      userInitials={getUserInitials()}
+      userAvatarColor={getUserAvatarColor()}
+      userName={getUserFullName()}
+      userRole={roles?.[0]}
+    >
+      <ContactsContent />
       <EditDialog
         visible={editVisible}
         contact={editContact}
@@ -1064,7 +1175,6 @@ export default function ContactsScreen() {
         onSave={handleSave}
         saving={saving}
       />
-
       <ConfirmDialog
         visible={!!confirmDelete}
         title="Delete Contact"
@@ -1074,7 +1184,6 @@ export default function ContactsScreen() {
         onConfirm={handleDeleteConfirm}
         onCancel={() => setConfirmDelete(null)}
       />
-
       {toast && <Toast msg={toast.msg} type={toast.type} />}
     </SidebarLayout>
   );

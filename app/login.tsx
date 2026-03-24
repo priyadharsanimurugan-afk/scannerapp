@@ -138,28 +138,35 @@ const LoginScreen = () => {
 
       <View style={loginStyles.brand}>
       <View
-  style={[
-    loginStyles.brandIcon,
-    isDesktop && { marginTop: 100 },
-  ]}
+  // style={[
+  //   loginStyles.brandIcon,
+  //   isDesktop && { marginTop: 100 },
+  // ]}
 >
-  <Image
-    source={require("@/assets/images/logo.png")} // 👈 your logo path
-    style={{
-      width: isDesktop ? 40 : 50,
-      height: isDesktop ? 40 : 50,
+<Image
+  source={require("@/assets/images/scannerlogo.png")}
+  style={[
+    {
+      width: isDesktop ? 60 : 50,
+      height: isDesktop ? 60 : 50,
       resizeMode: "contain",
-    }}
-  />
+      marginRight: 20,
+      marginTop: 20
+    },
+    isDesktop && { marginTop: 120 ,marginRight: 20},
+  ]}
+/>
+
 </View>
 
         <View>
           <Text
             style={[
               loginStyles.brandName,
+          
 
               // ✅ only desktop
-              isDesktop && { marginTop: 100 },
+              isDesktop && { marginTop: 120 },
             ]}
           >
             CardScan Pro
