@@ -62,7 +62,7 @@ export default function FloatingMenu() {
 
           {/* Contacts */}
           <TouchableOpacity
-            style={[styles.menuItem, { bottom: 60, right: 80 }]}
+            style={[styles.menuItem, { bottom: 60, right: 70 }]}
             onPress={() => {
               router.push("/contacts");
               setOpen(false);
@@ -76,7 +76,7 @@ export default function FloatingMenu() {
           <TouchableOpacity
             style={[styles.menuItem, { bottom: 70, right: 0 }]}
             onPress={() => {
-              router.push("/scan");
+              router.push({ pathname: "/scan", params: { openCamera: Date.now().toString() } });
               setOpen(false);
             }}
           >

@@ -17,7 +17,7 @@ import { useCards, ScannedCard, OCRData } from '@/components/store/useCardStore'
 import { useContact } from '@/hooks/useContact';
 import { colors } from '@/constants/colors';
 import { CameraStyles, scanStyles } from '@/components/styles/scanStyles';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Linking } from 'react-native';
 import { useMenuVisibility } from '@/context/MenuVisibilityContext';
 
@@ -103,42 +103,98 @@ async function scanQRFromImage(uri: string): Promise<string | null> {
 }
 
 // ─── PARSE QR → CLEAN FIELDS ONLY ──
+// ─── PARSE QR → CLEAN FIELDS ONLY ──
 function parseQRToFields(raw: string): Partial<Record<string, string>> {
   const lo = raw.toLowerCase();
   const out: Partial<Record<string, string>> = {};
 
   // Handle vCard
   if (lo.includes('begin:vcard')) {
-    const get = (f: string) => { 
-      const m = raw.match(new RegExp(`${f}[^:]*:([^\r\n;]+)`, 'i')); 
-      return m ? m[1].trim() : ''; 
+    const lines = raw.split(/\r?\n/);
+
+    const getField = (prefix: string): string => {
+      for (const line of lines) {
+        // Match lines like: FN:Value  or  FN;CHARSET=UTF-8:Value  or  TEL;TYPE=CELL:Value
+        const match = line.match(new RegExp(`^${prefix}(?:[;:][^:]*)?:(.+)$`, 'i'));
+        if (match) {
+          const val = match[1].trim();
+          if (val) return val;
+        }
+      }
+      return '';
     };
-    const fn = get('FN'), n = get('N')?.replace(/;/g, ' ').trim();
-    if (fn || n) out.name = fn || n;
-    const tel = get('TEL'); if (tel) out.phone = tel;
-    const email = get('EMAIL'); if (email) out.email = email;
-    const url = get('URL'); if (url) out.website = url;
-    const org = get('ORG'); if (org) out.company = org;
-    const title = get('TITLE'); if (title) out.designation = title;
-    const adr = get('ADR'); if (adr) out.address = adr.replace(/;+/g, ', ').replace(/^,\s*/, '').replace(/,\s*,/g, ',').trim();
-    return out;
+
+    const fn = getField('FN');
+    const n = getField('N')
+      ?.split(';')
+      .map(s => s.trim())
+      .filter(Boolean)
+      .reverse()
+      .join(' ')
+      .trim();
+
+    const name = fn || n;
+    if (name) out.name = name;
+
+    // Phone — pick first non-empty TEL line
+    for (const line of lines) {
+      const m = line.match(/^TEL(?:[;:][^:]*)?:(.+)$/i);
+      if (m && m[1].trim()) { out.phone = m[1].trim(); break; }
+    }
+
+    // Email — pick first non-empty EMAIL line
+    for (const line of lines) {
+      const m = line.match(/^EMAIL(?:[;:][^:]*)?:(.+)$/i);
+      if (m && m[1].trim()) { out.email = m[1].trim(); break; }
+    }
+
+    // URL / Website
+    for (const line of lines) {
+      const m = line.match(/^URL(?:[;:][^:]*)?:(.+)$/i);
+      if (m && m[1].trim()) { out.website = m[1].trim(); break; }
+    }
+
+    // ORG
+    const org = getField('ORG');
+    if (org) out.company = org.split(';')[0].trim(); // ORG can be "Company;Department"
+
+    // TITLE (designation)
+    const title = getField('TITLE');
+    if (title) out.designation = title;
+
+    // ADR — format: ;;street;city;state;zip;country
+    for (const line of lines) {
+      const m = line.match(/^ADR(?:[;:][^:]*)?:(.+)$/i);
+      if (m) {
+        const parts = m[1].split(';').map(s => s.trim()).filter(Boolean);
+        if (parts.length > 0) { out.address = parts.join(', '); }
+        break;
+      }
+    }
+
+    // Only return if we found at least one real field
+    if (Object.keys(out).length > 0) return out;
+    return {}; // vCard detected but nothing useful parsed → return empty
   }
 
   // Handle MeCard
   if (lo.includes('mecard:')) {
-    const get = (f: string) => { const m = raw.match(new RegExp(`${f}:([^;\\n]+)`, 'i')); return m ? m[1].trim() : ''; };
+    const get = (f: string) => {
+      const m = raw.match(new RegExp(`${f}:([^;\\n]+)`, 'i'));
+      return m ? m[1].trim() : '';
+    };
     const n = get('N'); if (n) out.name = n;
     const tel = get('TEL'); if (tel) out.phone = tel;
     const email = get('EMAIL'); if (email) out.email = email;
     const url = get('URL'); if (url) out.website = url;
-    return out;
+    return Object.keys(out).length > 0 ? out : {};
   }
 
   // Handle UPI
   if (/upi:\/\//i.test(raw)) {
     const pa = raw.match(/pa=([^&\s]+)/i)?.[1]; if (pa) out.email = pa;
     const pn = raw.match(/pn=([^&\s]+)/i)?.[1]; if (pn) out.name = decodeURIComponent(pn);
-    return out;
+    return Object.keys(out).length > 0 ? out : {};
   }
 
   // Fallbacks for plain text URLs/Emails
@@ -146,11 +202,11 @@ function parseQRToFields(raw: string): Partial<Record<string, string>> {
   if (EMAIL_RE.test(raw) && !raw.includes('\n')) { out.email = raw; return out; }
   if (GST_RE.test(raw.trim().toUpperCase())) { out.gst = raw.trim().toUpperCase(); return out; }
 
-  // Only store as "qrdetail" if it's not a standard contact format but contains info
-  if (raw.trim().length > 0 && !lo.includes('begin:vcard') && !lo.includes('mecard:')) {
-     out.qrdetail = raw.trim();
+  // Only store as "qrdetail" if raw text has useful content
+  if (raw.trim().length > 0) {
+    out.qrdetail = raw.trim();
   }
-  
+
   return out;
 }
 
@@ -368,7 +424,7 @@ function CameraScanner({ phase, onCapture, onClose, capturedFrontUri, onGalleryP
         )}
         <TouchableOpacity style={[CameraStyles.captureBtn, { backgroundColor: fc, opacity: busy ? 0.7 : 1 }]} onPress={capture} disabled={busy} activeOpacity={0.8}>
           {busy ? <ActivityIndicator size="small" color={isFront ? colors.navy : '#fff'} />
-            : <><Ionicons name="camera" size={20} color={isFront ? colors.navy : '#fff'} /><Text style={[CameraStyles.captureText, { color: isFront ? colors.navy : '#fff' }]}>{isFront ? 'Front' : 'Back'}</Text></>}
+            : <><Ionicons name="camera" size={20} color={isFront ? colors.navy : '#fff'} /><Text style={[CameraStyles.captureText, { color: isFront ? colors.navy : '#fff' }]}>{isFront ? ' Capture Front' : ' Back'}</Text></>}
         </TouchableOpacity>
             <TouchableOpacity style={[CameraStyles.cancelBtn, { backgroundColor: 'rgba(255,255,255,0.18)' }]} onPress={onGalleryPick}>
           <Ionicons name="images-outline" size={16} color="#fff" /><Text style={CameraStyles.cancelText}>Gallery</Text>
@@ -487,7 +543,22 @@ export default function ScanScreen() {
     setShowCam(true); setQrBanner(null); liveQR.current = null;
     return () => { setShowCam(false); };
   }, []));
-
+const { openCamera: openCameraParam } = useLocalSearchParams<{ openCamera?: string }>();
+ 
+// Add this useEffect right after your existing useEffect for setMenuVisible:
+useEffect(() => {
+  if (openCameraParam) {
+    // Force camera open whenever this param changes (new timestamp = new press)
+    setFrontUri(null);
+    setPhase('front');
+    liveQR.current = null;
+    setExpandedId(null);
+    setEditingId(null);
+    setLocalFields([]);
+    setQrBanner(null);
+    setShowCam(true);
+  }
+}, [openCameraParam]);
   const openCamera = useCallback(() => { setFrontUri(null); setPhase('front'); liveQR.current = null; setShowCam(true); }, []);
   const closeCamera = useCallback(() => { setShowCam(false); setFrontUri(null); setPhase('front'); liveQR.current = null; }, []);
   const onLiveQR = useCallback((d: string) => { liveQR.current = d; }, []);
@@ -499,7 +570,7 @@ export default function ScanScreen() {
     } catch { return ''; }
   };
 
-  const buildCard = useCallback(async (fUri: string, bUri?: string | null) => {
+const buildCard = useCallback(async (fUri: string, bUri?: string | null) => {
     setIsProc(true); setProcStep('Running OCR…'); setShowCam(false);
     try {
       const ft = await runOCR(fUri), bt = bUri ? await runOCR(bUri) : '';
@@ -527,25 +598,45 @@ export default function ScanScreen() {
 
       let qrFields: Partial<Record<string, string>> = {};
       if (qrRaw) {
-        qrFields = parseQRToFields(qrRaw);
-        const existVals = new Set(fields.map(f => f.value.toLowerCase().trim()));
-        const typeMap: Record<string, string> = { name: 'name', phone: 'phone', email: 'email', website: 'website', company: 'company', designation: 'designation', address: 'address', gst: 'gst', qrdetail: 'qrdetail' };
-        Object.entries(qrFields).forEach(([k, v]) => {
-          if (!v || !v.length) return;
-          const t = typeMap[k] || k;
-          if (!existVals.has(v.toLowerCase().trim())) { fields.push({ id: uid(`qr-${t}`), type: t, value: v, order: fields.length }); existVals.add(v.toLowerCase().trim()); }
-        });
-        fields.forEach((f, i) => { f.order = i; });
+        const parsed = parseQRToFields(qrRaw);
+          console.log('RAW QR:', qrRaw);  
+
+        // Only keep fields whose value actually exists in the raw QR string
+        const verified: Partial<Record<string, string>> = {};
+        for (const [k, v] of Object.entries(parsed)) {
+          if (!v || !v.trim()) continue;
+          if (qrRaw.toLowerCase().includes(v.toLowerCase().trim())) {
+            verified[k] = v;
+          }
+        }
+        qrFields = verified;
+
+        if (Object.keys(qrFields).length > 0) {
+          const existVals = new Set(fields.map(f => f.value.toLowerCase().trim()));
+          const typeMap: Record<string, string> = { name: 'name', phone: 'phone', email: 'email', website: 'website', company: 'company', designation: 'designation', address: 'address', gst: 'gst', qrdetail: 'qrdetail' };
+          Object.entries(qrFields).forEach(([k, v]) => {
+            if (!v || !v.length) return;
+            const t = typeMap[k] || k;
+            if (!existVals.has(v.toLowerCase().trim())) {
+              fields.push({ id: uid(`qr-${t}`), type: t, value: v, order: fields.length });
+              existVals.add(v.toLowerCase().trim());
+            }
+          });
+          fields.forEach((f, i) => { f.order = i; });
+        }
       }
 
       const card: ExtendedScannedCard = { id: uid('card'), uri: fUri, ...(bUri ? { backUri: bUri, hasBothSides: true } : {}), data: { fullText } as OCRData, fields, tags: [], createdAt: new Date().toISOString(), exported: false };
       addCard(card);
       setExpandedId(card.id); setLocalFields((card.fields || []).map(f => ({ ...f }))); setEditingId(card.id);
-      if (qrRaw && Object.keys(qrFields).length > 0) setQrBanner({ cardId: card.id, fields: qrFields });
+
+      // Only show banner if there are verified non-qrdetail fields
+      const bannerFields = Object.fromEntries(Object.entries(qrFields).filter(([k]) => k !== 'qrdetail'));
+      if (qrRaw && Object.keys(bannerFields).length > 0) setQrBanner({ cardId: card.id, fields: bannerFields });
+
     } catch (e: any) { Alert.alert('Processing Failed', e.message ?? 'Unknown error'); }
     finally { setIsProc(false); setProcStep(''); }
   }, [addCard, openCamera]);
-
   const onCapture = useCallback(async (uri: string) => {
     if (phase === 'front') { setFrontUri(uri); setPhase('back'); }
     else { const f = frontUri!; setFrontUri(null); setPhase('front'); await buildCard(f, uri); }
