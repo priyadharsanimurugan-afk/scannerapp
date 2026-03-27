@@ -8,7 +8,7 @@ import {
 import { refreshTokenUser } from "./auth";
 import { triggerLogout } from "@/utils/logout";
 
-export const API_BASE_URL = "https://bs.lemeniz.com/api";
+export const API_BASE_URL = "https://bsapi.lemeniz.com/api";
 
 const api = axios.create({
   baseURL: API_BASE_URL,

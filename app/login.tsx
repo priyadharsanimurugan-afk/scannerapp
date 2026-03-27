@@ -23,6 +23,7 @@ import {
   saveRememberedCredentials,
   clearRememberedCredentials,
 } from "@/utils/tokenStorage";
+import { router,  } from "expo-router";
 
 const LoginScreen = () => {
   const { width } = useWindowDimensions();
@@ -321,15 +322,17 @@ const LoginScreen = () => {
 
   // ── Bottom Info ─────────────────────────────────────────────────────────────
   const renderBottomInfo = () => (
-    <View style={loginStyles.bottomInfo}>
-      <Text style={loginStyles.bottomText}>
-        By continuing, you agree to our{" "}
-        <Text style={loginStyles.bottomLink}>Terms of Service</Text>
-        {"\n"}
-        and <Text style={loginStyles.bottomLink}>Privacy Policy</Text>. Your
-        data is encrypted & secure.
-      </Text>
-    </View>
+  <View style={loginStyles.bottomInfo}>
+  <Text style={loginStyles.bottomText}>
+    By continuing, you agree to our{" "}
+    <Text
+      style={loginStyles.bottomLink}
+      onPress={() => router.push("/privacy-policy")}
+    >
+      Privacy Policy
+    </Text>.
+  </Text>
+</View>
   );
 
   // ── DESKTOP LAYOUT (two-column) ────────────────────────────────────────────

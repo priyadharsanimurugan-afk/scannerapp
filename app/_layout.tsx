@@ -24,7 +24,7 @@ function LayoutContent() {
 
       const token = await getAccessToken();
 
-      const publicRoutes = ["login", "verify-email", "reset-password"];
+      const publicRoutes = ["login", "verify-email", "reset-password","privacy-policy"];
       const currentRoute = segments[0];
 
       const isPublicRoute = publicRoutes.includes(currentRoute);

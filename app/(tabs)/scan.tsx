@@ -106,106 +106,32 @@ async function scanQRFromImage(uri: string): Promise<string | null> {
 // ─── PARSE QR → CLEAN FIELDS ONLY ──
 function parseQRToFields(raw: string): Partial<Record<string, string>> {
   const lo = raw.toLowerCase();
+
+  // ── If it's a vCard or MeCard → IGNORE, OCR already has everything ──
+  if (lo.includes('begin:vcard') || lo.includes('mecard:')) {
+    return {};
+  }
+
   const out: Partial<Record<string, string>> = {};
 
-  // Handle vCard
-  if (lo.includes('begin:vcard')) {
-    const lines = raw.split(/\r?\n/);
-
-    const getField = (prefix: string): string => {
-      for (const line of lines) {
-        // Match lines like: FN:Value  or  FN;CHARSET=UTF-8:Value  or  TEL;TYPE=CELL:Value
-        const match = line.match(new RegExp(`^${prefix}(?:[;:][^:]*)?:(.+)$`, 'i'));
-        if (match) {
-          const val = match[1].trim();
-          if (val) return val;
-        }
-      }
-      return '';
-    };
-
-    const fn = getField('FN');
-    const n = getField('N')
-      ?.split(';')
-      .map(s => s.trim())
-      .filter(Boolean)
-      .reverse()
-      .join(' ')
-      .trim();
-
-    const name = fn || n;
-    if (name) out.name = name;
-
-    // Phone — pick first non-empty TEL line
-    for (const line of lines) {
-      const m = line.match(/^TEL(?:[;:][^:]*)?:(.+)$/i);
-      if (m && m[1].trim()) { out.phone = m[1].trim(); break; }
-    }
-
-    // Email — pick first non-empty EMAIL line
-    for (const line of lines) {
-      const m = line.match(/^EMAIL(?:[;:][^:]*)?:(.+)$/i);
-      if (m && m[1].trim()) { out.email = m[1].trim(); break; }
-    }
-
-    // URL / Website
-    for (const line of lines) {
-      const m = line.match(/^URL(?:[;:][^:]*)?:(.+)$/i);
-      if (m && m[1].trim()) { out.website = m[1].trim(); break; }
-    }
-
-    // ORG
-    const org = getField('ORG');
-    if (org) out.company = org.split(';')[0].trim(); // ORG can be "Company;Department"
-
-    // TITLE (designation)
-    const title = getField('TITLE');
-    if (title) out.designation = title;
-
-    // ADR — format: ;;street;city;state;zip;country
-    for (const line of lines) {
-      const m = line.match(/^ADR(?:[;:][^:]*)?:(.+)$/i);
-      if (m) {
-        const parts = m[1].split(';').map(s => s.trim()).filter(Boolean);
-        if (parts.length > 0) { out.address = parts.join(', '); }
-        break;
-      }
-    }
-
-    // Only return if we found at least one real field
-    if (Object.keys(out).length > 0) return out;
-    return {}; // vCard detected but nothing useful parsed → return empty
-  }
-
-  // Handle MeCard
-  if (lo.includes('mecard:')) {
-    const get = (f: string) => {
-      const m = raw.match(new RegExp(`${f}:([^;\\n]+)`, 'i'));
-      return m ? m[1].trim() : '';
-    };
-    const n = get('N'); if (n) out.name = n;
-    const tel = get('TEL'); if (tel) out.phone = tel;
-    const email = get('EMAIL'); if (email) out.email = email;
-    const url = get('URL'); if (url) out.website = url;
-    return Object.keys(out).length > 0 ? out : {};
-  }
-
-  // Handle UPI
+  // ── UPI ────────────────────────────────────────────
   if (/upi:\/\//i.test(raw)) {
     const pa = raw.match(/pa=([^&\s]+)/i)?.[1]; if (pa) out.email = pa;
     const pn = raw.match(/pn=([^&\s]+)/i)?.[1]; if (pn) out.name = decodeURIComponent(pn);
     return Object.keys(out).length > 0 ? out : {};
   }
 
-  // Fallbacks for plain text URLs/Emails
+  // ── Plain URL ──────────────────────────────────────
   if (URL_RE.test(raw) && !raw.includes('\n')) { out.website = raw; return out; }
+
+  // ── Plain Email ────────────────────────────────────
   if (EMAIL_RE.test(raw) && !raw.includes('\n')) { out.email = raw; return out; }
+
+  // ── GST ────────────────────────────────────────────
   if (GST_RE.test(raw.trim().toUpperCase())) { out.gst = raw.trim().toUpperCase(); return out; }
 
-  // Only store as "qrdetail" if raw text has useful content
-  if (raw.trim().length > 0) {
-    out.qrdetail = raw.trim();
-  }
+  // ── Plain text fallback ────────────────────────────
+  if (raw.trim().length > 0) { out.qrdetail = raw.trim(); }
 
   return out;
 }
