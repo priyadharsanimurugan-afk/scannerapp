@@ -167,20 +167,17 @@ const ContactImageViewer = ({
 }) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [rotation, setRotation] = useState(0);
-  // Animated value for smooth rotation
   const rotateAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
       setCurrentIndex(initialIndex);
-      // Reset rotation when image changes (optional)
       setRotation(0);
       rotateAnim.setValue(0);
     }
   }, [visible, initialIndex]);
 
   useEffect(() => {
-    // Animate rotation change
     Animated.timing(rotateAnim, {
       toValue: rotation,
       duration: 200,
@@ -193,11 +190,6 @@ const ContactImageViewer = ({
   const imageUrls = images.map(img => ({ url: img.url }));
 
   const renderImage = (props: any) => {
-    // Props from ImageViewer: { source, style, ... }
-    const rotate = rotateAnim.interpolate({
-      inputRange: [-360, 360],
-      outputRange: ['-360deg', '360deg'],
-    });
     return (
       <Animated.Image
         {...props}
@@ -227,37 +219,27 @@ const ContactImageViewer = ({
         backgroundColor="#000000"
         onIndexChange={(index: React.SetStateAction<number>) => setCurrentIndex(index)}
         renderHeader={() => (
-  <SafeAreaView style={ivs.safeHeader}>
-    <View style={ivs.header}>
-      
-      {/* Close */}
-      <TouchableOpacity onPress={onClose} style={ivs.closeButton}>
-        <Icon name="close" size={20} color="#fff" />
-      </TouchableOpacity>
-
-      {/* Title */}
-      <Text style={ivs.headerTitle}>
-        {images[currentIndex]?.label || `Image ${currentIndex + 1}`}
-      </Text>
-
-      {/* Rotate */}
-      <TouchableOpacity onPress={() => setRotation((r) => r - 90)} style={ivs.rotateButton}>
-        <Icon name="refresh-outline"   size={20} color="#fff" />
-      </TouchableOpacity>
-
-    </View>
-  </SafeAreaView>
-)}
-
-       renderIndicator={(currentIndex, allSize) => (
-  <View style={ivs.bottomIndicator}>
-    <Text style={ivs.indicatorText}>
-      {currentIndex} / {allSize}
-    </Text>
-  </View>
-)}
-
-      
+          <SafeAreaView style={ivs.safeHeader}>
+            <View style={ivs.header}>
+              <TouchableOpacity onPress={onClose} style={ivs.closeButton}>
+                <Icon name="close" size={20} color="#fff" />
+              </TouchableOpacity>
+              <Text style={ivs.headerTitle}>
+                {images[currentIndex]?.label || `Image ${currentIndex + 1}`}
+              </Text>
+              <TouchableOpacity onPress={() => setRotation((r) => r - 90)} style={ivs.rotateButton}>
+                <Icon name="refresh-outline" size={20} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          </SafeAreaView>
+        )}
+        renderIndicator={(currentIndex, allSize) => (
+          <View style={ivs.bottomIndicator}>
+            <Text style={ivs.indicatorText}>
+              {currentIndex} / {allSize}
+            </Text>
+          </View>
+        )}
         renderImage={renderImage}
         doubleClickInterval={300}
         enableImageZoom
@@ -296,7 +278,7 @@ const ivs = StyleSheet.create({
     marginTop: 60,
   },
   rotateButton: {
-width: 40,
+    width: 40,
     height: 40,
     borderRadius: 22,
     backgroundColor: "rgba(0,0,0,0.5)",
@@ -306,7 +288,7 @@ width: 40,
     borderColor: "rgba(255,255,255,0.2)",
     marginTop: 60,
   },
-   bottomIndicator: {
+  bottomIndicator: {
     position: "absolute",
     bottom: Platform.OS === "ios" ? 40 : 20,
     alignSelf: "center",
@@ -322,42 +304,15 @@ width: 40,
     fontWeight: "600",
     flex: 1,
     textAlign: "center",
-    // marginHorizontal: 12,
     marginTop: 60,
-  },
-  indicatorContainer: {
-    position: "absolute",
-    top: Platform.OS === "ios" ? 90 : 70,
-    right: 16,
-    zIndex: 1000,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
   },
   indicatorText: {
     color: "#fff",
     fontSize: 12,
   },
-  footer: {
-    position: "absolute",
-    bottom: Platform.OS === "ios" ? 40 : 20,
-    left: 0,
-    right: 0,
-    alignItems: "center",
-    zIndex: 1000,
-  },
-  footerText: {
-    color: "rgba(255,255,255,0.7)",
-    fontSize: 13,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
 });
 
-// ─── Edit Field ──────────────────────────────────────────────────────────────
+// ─── Edit Field with Error Support ──────────────────────────────────────────────
 
 type EditForm = {
   personName: string;
@@ -380,7 +335,21 @@ type EditForm = {
   gstNumber: string;
 };
 
-// Standalone memoised field
+// Normalize PascalCase backend key → camelCase
+const normKey = (key: string) => key.charAt(0).toLowerCase() + key.slice(1);
+
+const extractFieldErrors = (error: any): Record<string, string> => {
+  const data = error?.response?.data;
+  const map: Record<string, string> = {};
+  if (!data?.errors) return map;
+  for (const [key, value] of Object.entries(data.errors)) {
+    const normalized = normKey(key);
+    const msgs = Array.isArray(value) ? value : [value];
+    if (msgs.length > 0) map[normalized] = msgs[0] as string;
+  }
+  return map;
+};
+
 const EditField = React.memo(
   ({
     label,
@@ -389,6 +358,7 @@ const EditField = React.memo(
     placeholder,
     keyboardType,
     multiline,
+    error,
   }: {
     label: string;
     value: string;
@@ -396,11 +366,20 @@ const EditField = React.memo(
     placeholder?: string;
     keyboardType?: any;
     multiline?: boolean;
+    error?: string;
   }) => (
     <View style={esS.fieldWrap}>
       <Text style={esS.fieldLabel}>{label}</Text>
       <TextInput
-        style={[esS.fieldInput, multiline && esS.fieldInputMulti]}
+        style={[
+          esS.fieldInput,
+          multiline && esS.fieldInputMulti,
+          error && {
+            borderWidth: 1.5,
+            borderColor: colors.error,
+            backgroundColor: 'rgba(239,68,68,0.04)',
+          },
+        ]}
         value={value}
         onChangeText={onChange}
         placeholder={placeholder ?? `Enter ${label.toLowerCase()}...`}
@@ -413,6 +392,12 @@ const EditField = React.memo(
         multiline={multiline}
         scrollEnabled={multiline}
       />
+      {error ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+          <Icon name="alert-circle-outline" size={12} color={colors.error} />
+          <Text style={{ fontSize: 11, color: colors.error, fontWeight: '500' }}>{error}</Text>
+        </View>
+      ) : null}
     </View>
   ),
 );
@@ -425,7 +410,7 @@ const esS = StyleSheet.create({
   sectionHead:      { fontSize: 11, fontWeight: '700', color: colors.amber, marginTop: 20, marginBottom: 4, paddingHorizontal: 16, letterSpacing: 1, textTransform: 'uppercase' },
 });
 
-// ─── Edit Sheet ──────────────────────────────────────────────────────────────
+// ─── Edit Sheet with Error Handling ──────────────────────────────────────────────
 const EditSheet = ({
   visible,
   contact,
@@ -436,7 +421,7 @@ const EditSheet = ({
   visible: boolean;
   contact: ContactDetail | null;
   onClose: () => void;
-  onSave: (f: EditForm) => void;
+  onSave: (f: EditForm) => Promise<void>;
   saving: boolean;
 }) => {
   const blankForm: EditForm = {
@@ -448,6 +433,7 @@ const EditSheet = ({
   };
 
   const [form, setForm] = useState<EditForm>(blankForm);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (contact) {
@@ -471,14 +457,35 @@ const EditSheet = ({
         qrCodeDetail:     contact.qrCodeDetail     ?? '',
         gstNumber:        contact.gstNumber        ?? '',
       });
+      setFieldErrors({});
     }
   }, [contact?.id]);
 
   const sf = useCallback(
-    (key: keyof EditForm) => (val: string) =>
-      setForm((f) => ({ ...f, [key]: val })),
+    (key: keyof EditForm) => (val: string) => {
+      setForm((f) => ({ ...f, [key]: val }));
+      // Clear error for this field as user types
+      setFieldErrors((prev) => {
+        if (!prev[key]) return prev;
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    },
     [],
   );
+
+  const handleSaveWithErrors = async () => {
+    setFieldErrors({});
+    try {
+      await onSave(form);
+      // onSave closes the dialog on success
+    } catch (error: any) {
+      const errors = extractFieldErrors(error);
+      setFieldErrors(errors);
+      // No alert - errors shown inline on fields
+    }
+  };
 
   const SH = (t: string) => <Text style={esS.sectionHead}>{t}</Text>;
 
@@ -515,35 +522,130 @@ const EditSheet = ({
               automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
             >
               {SH('Personal')}
-              <EditField label="Full Name"   value={form.personName}  onChange={sf('personName')} />
-              <EditField label="Designation" value={form.designation} onChange={sf('designation')} />
+              <EditField 
+                label="Full Name"   
+                value={form.personName}  
+                onChange={sf('personName')}  
+                error={fieldErrors.personName}
+              />
+              <EditField 
+                label="Designation" 
+                value={form.designation} 
+                onChange={sf('designation')} 
+                error={fieldErrors.designation}
+              />
 
               {SH('Company')}
-              <EditField label="Company Name" value={form.companyName}    onChange={sf('companyName')} />
-              <EditField label="Sub Company"  value={form.subCompanyName} onChange={sf('subCompanyName')} />
-              <EditField label="Branch"       value={form.branchName}     onChange={sf('branchName')} />
+              <EditField 
+                label="Company Name" 
+                value={form.companyName}    
+                onChange={sf('companyName')} 
+                error={fieldErrors.companyName}
+              />
+              <EditField 
+                label="Sub Company"  
+                value={form.subCompanyName} 
+                onChange={sf('subCompanyName')} 
+                error={fieldErrors.subCompanyName}
+              />
+              <EditField 
+                label="Branch"       
+                value={form.branchName}     
+                onChange={sf('branchName')} 
+                error={fieldErrors.branchName}
+              />
 
               {SH('Phone Numbers')}
-              <EditField label="Phone 1" value={form.phoneNumber1} onChange={sf('phoneNumber1')} keyboardType="phone-pad" />
-              <EditField label="Phone 2" value={form.phoneNumber2} onChange={sf('phoneNumber2')} keyboardType="phone-pad" />
-              <EditField label="Phone 3" value={form.phoneNumber3} onChange={sf('phoneNumber3')} keyboardType="phone-pad" />
+              <EditField 
+                label="Phone 1" 
+                value={form.phoneNumber1} 
+                onChange={sf('phoneNumber1')} 
+                keyboardType="phone-pad" 
+                error={fieldErrors.phoneNumber1}
+              />
+              <EditField 
+                label="Phone 2" 
+                value={form.phoneNumber2} 
+                onChange={sf('phoneNumber2')} 
+                keyboardType="phone-pad" 
+                error={fieldErrors.phoneNumber2}
+              />
+              <EditField 
+                label="Phone 3" 
+                value={form.phoneNumber3} 
+                onChange={sf('phoneNumber3')} 
+                keyboardType="phone-pad" 
+                error={fieldErrors.phoneNumber3}
+              />
 
               {SH('Email')}
-              <EditField label="Email 1" value={form.email1} onChange={sf('email1')} keyboardType="email-address" />
-              <EditField label="Email 2" value={form.email2} onChange={sf('email2')} keyboardType="email-address" />
+              <EditField 
+                label="Email 1" 
+                value={form.email1} 
+                onChange={sf('email1')} 
+                keyboardType="email-address" 
+                error={fieldErrors.email1}
+              />
+              <EditField 
+                label="Email 2" 
+                value={form.email2} 
+                onChange={sf('email2')} 
+                keyboardType="email-address" 
+                error={fieldErrors.email2}
+              />
 
               {SH('Online Presence')}
-              <EditField label="Website 1"      value={form.website1}     onChange={sf('website1')}     keyboardType="url" />
-              <EditField label="Website 2"      value={form.website2}     onChange={sf('website2')}     keyboardType="url" />
-              <EditField label="QR Code / Link" value={form.qrCodeDetail} onChange={sf('qrCodeDetail')} keyboardType="url" />
+              <EditField 
+                label="Website 1"      
+                value={form.website1}     
+                onChange={sf('website1')}     
+                keyboardType="url" 
+                error={fieldErrors.website1}
+              />
+              <EditField 
+                label="Website 2"      
+                value={form.website2}     
+                onChange={sf('website2')}     
+                keyboardType="url" 
+                error={fieldErrors.website2}
+              />
+              <EditField 
+                label="QR Code / Link" 
+                value={form.qrCodeDetail} 
+                onChange={sf('qrCodeDetail')} 
+                keyboardType="url" 
+                error={fieldErrors.qrCodeDetail}
+              />
 
               {SH('Business Info')}
-              <EditField label="GST Number"  value={form.gstNumber}   onChange={sf('gstNumber')} />
-              <EditField label="Partnership" value={form.partnership} onChange={sf('partnership')} />
+              <EditField 
+                label="GST Number"  
+                value={form.gstNumber}   
+                onChange={sf('gstNumber')} 
+                error={fieldErrors.gstNumber}
+              />
+              <EditField 
+                label="Partnership" 
+                value={form.partnership} 
+                onChange={sf('partnership')} 
+                error={fieldErrors.partnership}
+              />
 
               {SH('Address & Services')}
-              <EditField label="Address"                    value={form.address}     onChange={sf('address')}     multiline />
-              <EditField label="Services (comma separated)" value={form.servicesCsv} onChange={sf('servicesCsv')} multiline />
+              <EditField 
+                label="Address"                    
+                value={form.address}     
+                onChange={sf('address')}     
+                multiline 
+                error={fieldErrors.address}
+              />
+              <EditField 
+                label="Services (comma separated)" 
+                value={form.servicesCsv} 
+                onChange={sf('servicesCsv')} 
+                multiline 
+                error={fieldErrors.servicesCsv}
+              />
 
               {SH('Raw Extracted Text')}
               <EditField
@@ -552,11 +654,12 @@ const EditSheet = ({
                 onChange={sf('rawExtractedText')}
                 multiline
                 placeholder="Full text extracted from the business card..."
+                error={fieldErrors.rawExtractedText}
               />
 
               <TouchableOpacity
                 style={[shS.saveBtn, saving && { opacity: 0.65 }]}
-                onPress={() => onSave(form)}
+                onPress={handleSaveWithErrors}
                 disabled={saving}
               >
                 {saving ? (
@@ -708,7 +811,6 @@ const ContactDetailModal = ({
   const frontUri   = buildImageUri(contact.frontImage, contact.frontImageMimeType);
   const backUri    = buildImageUri(contact.backImage, contact.backImageMimeType);
   
-  // Build images array for viewer
   const cardImages: { url: any; label: any; }[] = [];
   if (frontUri) cardImages.push({ url: frontUri, label: 'Front Side' });
   if (backUri) cardImages.push({ url: backUri, label: 'Back Side' });
@@ -747,7 +849,6 @@ const ContactDetailModal = ({
         <View style={contactsStyles.detailSheet}>
           <View style={contactsStyles.detailHandle} />
 
-          {/* Top bar */}
           <View style={contactsStyles.detailTopBar}>
             <TouchableOpacity onPress={onClose} style={contactsStyles.detailCloseBtn}>
               <Icon name="chevron-down" size={22} color={colors.muted} />
@@ -782,7 +883,6 @@ const ContactDetailModal = ({
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 40 }}
           >
-            {/* Hero */}
             <View style={contactsStyles.detailHero}>
               <View style={contactsStyles.detailHeroGlow} />
               <View style={[contactsStyles.detailAvatar, { backgroundColor: avatarBg }]}>
@@ -800,7 +900,6 @@ const ContactDetailModal = ({
               </View>
             </View>
 
-            {/* Business card images */}
             {cardImages.length > 0 && (
               <View style={contactsStyles.detailCardsRow}>
                 {cardImages.map((card, idx) => (
@@ -949,7 +1048,6 @@ const ContactDetailModal = ({
                 />
               </SectionCard>
 
-              {/* Bottom action row */}
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
                 <TouchableOpacity
                   style={[contactsStyles.detailEditBtn, { flex: 1 }]}
@@ -1064,7 +1162,6 @@ export default function ContactsScreen() {
   const [saving, setSaving]                   = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
-
   const CONTACTS_PER_PAGE = 10;
 
   const {
@@ -1074,8 +1171,6 @@ export default function ContactsScreen() {
     loadMore, total,
   } = useContact(1, 50);
 
-
-  // Pagination logic
   const filteredContacts = contacts.filter((c) => {
     const q = searchQuery.toLowerCase();
     return (
@@ -1154,7 +1249,6 @@ export default function ContactsScreen() {
     if (!editContact) return;
     setSaving(true);
     try {
-      // Convert EditForm to CreateContact format by adding image fields
       const updateData = {
         ...form,
         frontImageAsString: editContact.frontImage || '',
@@ -1167,7 +1261,8 @@ export default function ContactsScreen() {
       setEditVisible(false);
       Alert.alert('Success', 'Contact updated successfully');
     } catch (err) {
-      Alert.alert('Error', 'Failed to update contact');
+      setSaving(false);
+      throw err;
     } finally {
       setSaving(false);
     }
@@ -1224,7 +1319,6 @@ export default function ContactsScreen() {
         scrollEventThrottle={400}
         contentContainerStyle={{ paddingBottom: 40, backgroundColor: colors.phoneBg, flexGrow: 1 }}
       >
-        {/* Header */}
         <View style={contactsStyles.header}>
           <View style={contactsStyles.headerGlow} />
           <View style={contactsStyles.headerTop}>
@@ -1251,7 +1345,6 @@ export default function ContactsScreen() {
           </View>
         </View>
 
-        {/* Search bar */}
         <View style={contactsStyles.searchWrap}>
           <Icon name="search-outline" size={14} color={colors.muted} style={contactsStyles.searchIcon} />
           <TextInput
@@ -1268,7 +1361,6 @@ export default function ContactsScreen() {
           )}
         </View>
 
-        {/* Count bar */}
         <View style={contactsStyles.countBar}>
           <Text style={contactsStyles.countText}>
             Showing{' '}
@@ -1281,7 +1373,6 @@ export default function ContactsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Error */}
         {error && (
           <View style={{ padding: 20, alignItems: 'center' }}>
             <Text style={{ color: colors.error, textAlign: 'center', marginBottom: 10 }}>
@@ -1296,7 +1387,6 @@ export default function ContactsScreen() {
           </View>
         )}
 
-        {/* Empty */}
         {!error && filteredContacts.length === 0 && (
           <View style={{ padding: 40, alignItems: 'center', flex: 1 }}>
             <Icon name="people-outline" size={48} color={colors.muted} />
@@ -1308,7 +1398,6 @@ export default function ContactsScreen() {
           </View>
         )}
 
-        {/* List */}
         {!error && filteredContacts.length > 0 && (
           <>
             <View style={contactsStyles.contactList}>
@@ -1322,7 +1411,6 @@ export default function ContactsScreen() {
               ))}
             </View>
 
-            {/* Pagination Controls */}
             {totalPages > 1 && (
               <View style={paginationStyles.container}>
                 <TouchableOpacity
@@ -1361,7 +1449,6 @@ export default function ContactsScreen() {
         )}
       </ScrollView>
 
-      {/* Detail modal */}
       <ContactDetailModal
         visible={detailVisible}
         contact={selectedContact}
@@ -1371,7 +1458,6 @@ export default function ContactsScreen() {
         onDelete={handleDelete}
       />
 
-      {/* Edit sheet */}
       <EditSheet
         visible={editVisible}
         contact={editContact}

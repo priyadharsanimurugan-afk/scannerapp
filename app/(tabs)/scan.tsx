@@ -29,13 +29,33 @@ type CameraPhase = 'front' | 'back';
 let _seed = 0;
 const uid = (p: string) => `${p}-${Date.now()}-${++_seed}`;
 
+// ─── EXTRACT API ERROR (field-level + general) ────────────────────────────────
 function extractApiError(e: any): string {
   if (!e) return 'Unknown error.';
   const data = e?.response?.data ?? e?.data ?? null;
   if (data?.message) return data.message.trim();
-  if (data?.errors) { const msgs: string[] = []; Object.entries(data.errors as Record<string, string[]>).forEach(([k, v]) => { if (Array.isArray(v)) v.forEach(m => msgs.push(k === '$' ? m : `${k}: ${m}`)); }); if (msgs.length) return msgs.join('\n'); }
+  if (data?.errors) {
+    const msgs: string[] = [];
+    Object.entries(data.errors as Record<string, string[]>).forEach(([k, v]) => {
+      if (Array.isArray(v)) v.forEach(m => msgs.push(k === '$' ? m : `${k}: ${m}`));
+    });
+    if (msgs.length) return msgs.join('\n');
+  }
   if (data?.title) return data.title.trim();
   return e?.message?.trim() || 'Something went wrong.';
+}
+
+// Normalize PascalCase → camelCase and return field → first error message map
+function extractFieldErrors(e: any): Record<string, string> {
+  const data = e?.response?.data ?? e?.data ?? null;
+  const map: Record<string, string> = {};
+  if (!data?.errors) return map;
+  for (const [key, value] of Object.entries(data.errors as Record<string, string[]>)) {
+    const normalized = key.charAt(0).toLowerCase() + key.slice(1);
+    const msgs = Array.isArray(value) ? value : [value];
+    if (msgs.length > 0) map[normalized] = msgs[0] as string;
+  }
+  return map;
 }
 
 // ─── CLASSIFIERS ─────────────────────────────────────
@@ -102,37 +122,19 @@ async function scanQRFromImage(uri: string): Promise<string | null> {
   } catch { return null; }
 }
 
-// ─── PARSE QR → CLEAN FIELDS ONLY ──
-// ─── PARSE QR → CLEAN FIELDS ONLY ──
 function parseQRToFields(raw: string): Partial<Record<string, string>> {
   const lo = raw.toLowerCase();
-
-  // ── If it's a vCard or MeCard → IGNORE, OCR already has everything ──
-  if (lo.includes('begin:vcard') || lo.includes('mecard:')) {
-    return {};
-  }
-
+  if (lo.includes('begin:vcard') || lo.includes('mecard:')) return {};
   const out: Partial<Record<string, string>> = {};
-
-  // ── UPI ────────────────────────────────────────────
   if (/upi:\/\//i.test(raw)) {
     const pa = raw.match(/pa=([^&\s]+)/i)?.[1]; if (pa) out.email = pa;
     const pn = raw.match(/pn=([^&\s]+)/i)?.[1]; if (pn) out.name = decodeURIComponent(pn);
     return Object.keys(out).length > 0 ? out : {};
   }
-
-  // ── Plain URL ──────────────────────────────────────
   if (URL_RE.test(raw) && !raw.includes('\n')) { out.website = raw; return out; }
-
-  // ── Plain Email ────────────────────────────────────
   if (EMAIL_RE.test(raw) && !raw.includes('\n')) { out.email = raw; return out; }
-
-  // ── GST ────────────────────────────────────────────
   if (GST_RE.test(raw.trim().toUpperCase())) { out.gst = raw.trim().toUpperCase(); return out; }
-
-  // ── Plain text fallback ────────────────────────────
   if (raw.trim().length > 0) { out.qrdetail = raw.trim(); }
-
   return out;
 }
 
@@ -230,17 +232,37 @@ function TypePicker({ visible, current, onSelect, onClose }: { visible: boolean;
 }
 
 // ─── FIELD ROW ────────────────────────────────────────
-function FieldRow({ field, isEdit, onUpdate, onDelete, onChangeType, onCopy }: { field: FieldItem; isEdit: boolean; onUpdate: (id: string, v: string) => void; onDelete: (id: string) => void; onChangeType: (id: string, t: string) => void; onCopy: (v: string, t: string) => void }) {
+function FieldRow({ field, isEdit, onUpdate, onDelete, onChangeType, onCopy, error }: {
+  field: FieldItem; isEdit: boolean;
+  onUpdate: (id: string, v: string) => void; onDelete: (id: string) => void;
+  onChangeType: (id: string, t: string) => void; onCopy: (v: string, t: string) => void;
+  error?: string;
+}) {
   const [showP, setShowP] = useState(false);
   const c = FTC[field.type] || '#888', ic = FTI[field.type] || 'ellipse-outline';
   if (isEdit) return (<>
-    <View style={S.editRow}>
+    <View style={[S.editRow, error ? { borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.04)' } : {}]}>
       <TouchableOpacity style={[S.badge, { backgroundColor: c + '18', borderColor: c + '55' }]} onPress={() => setShowP(true)}>
         <Ionicons name={ic} size={10} color={c} /><Text style={[S.badgeText, { color: c }]} numberOfLines={1}>{fLabel(field.type)}</Text><Ionicons name="chevron-down" size={9} color={c} />
       </TouchableOpacity>
-      <TextInput style={S.editInput} value={field.value} onChangeText={v => onUpdate(field.id, v)} placeholderTextColor={colors.muted} autoCorrect={false} autoCapitalize={field.type === 'gst' ? 'characters' : 'none'} multiline={field.type === 'address' || field.type === 'qrdetail'} numberOfLines={field.type === 'address' || field.type === 'qrdetail' ? 3 : 1} />
+      <TextInput
+        style={[S.editInput, error ? { borderWidth: 1, borderColor: '#ef4444' } : {}]}
+        value={field.value}
+        onChangeText={v => onUpdate(field.id, v)}
+        placeholderTextColor={colors.muted}
+        autoCorrect={false}
+        autoCapitalize={field.type === 'gst' ? 'characters' : 'none'}
+        multiline={field.type === 'address' || field.type === 'qrdetail'}
+        numberOfLines={field.type === 'address' || field.type === 'qrdetail' ? 3 : 1}
+      />
       <TouchableOpacity style={S.delBtn} onPress={() => onDelete(field.id)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}><Ionicons name="close-circle" size={22} color="#ef4444" /></TouchableOpacity>
     </View>
+    {error ? (
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4, marginLeft: 4 }}>
+        <Ionicons name="alert-circle-outline" size={12} color="#ef4444" />
+        <Text style={{ fontSize: 11, color: '#ef4444', fontWeight: '500' }}>{error}</Text>
+      </View>
+    ) : null}
     <TypePicker visible={showP} current={field.type} onSelect={t => onChangeType(field.id, t)} onClose={() => setShowP(false)} />
   </>);
   return (
@@ -342,7 +364,6 @@ function CameraScanner({ phase, onCapture, onClose, capturedFrontUri, onGalleryP
         <TouchableOpacity style={CameraStyles.cancelBtn} onPress={onClose}>
           <Ionicons name="close" size={18} color="#fff" /><Text style={CameraStyles.cancelText}>Cancel</Text>
         </TouchableOpacity>
-    
         {!isFront && onSkip && (
           <TouchableOpacity style={[CameraStyles.cancelBtn, { backgroundColor: '#f59e0b' }]} onPress={onSkip}>
             <Ionicons name="arrow-forward-outline" size={16} color="#fff" /><Text style={CameraStyles.cancelText}>Skip</Text>
@@ -352,7 +373,7 @@ function CameraScanner({ phase, onCapture, onClose, capturedFrontUri, onGalleryP
           {busy ? <ActivityIndicator size="small" color={isFront ? colors.navy : '#fff'} />
             : <><Ionicons name="camera" size={20} color={isFront ? colors.navy : '#fff'} /><Text style={[CameraStyles.captureText, { color: isFront ? colors.navy : '#fff' }]}>{isFront ? ' Capture Front' : ' Back'}</Text></>}
         </TouchableOpacity>
-            <TouchableOpacity style={[CameraStyles.cancelBtn, { backgroundColor: 'rgba(255,255,255,0.18)' }]} onPress={onGalleryPick}>
+        <TouchableOpacity style={[CameraStyles.cancelBtn, { backgroundColor: 'rgba(255,255,255,0.18)' }]} onPress={onGalleryPick}>
           <Ionicons name="images-outline" size={16} color="#fff" /><Text style={CameraStyles.cancelText}>Gallery</Text>
         </TouchableOpacity>
       </View>
@@ -375,7 +396,6 @@ const CS = StyleSheet.create({
 function QRBanner({ fields, onDismiss }: { fields: Partial<Record<string, string>>; onDismiss: () => void }) {
   const items = Object.entries(fields).filter(([k, v]) => v && v.length > 0 && k !== 'qrdetail');
   const details = fields['qrdetail'];
-
   return (
     <View style={S.qrBanner}>
       <View style={S.qrHead}>
@@ -393,7 +413,7 @@ function QRBanner({ fields, onDismiss }: { fields: Partial<Record<string, string
 
 // ─── STYLES ───────────────────────────────────────────
 const S = StyleSheet.create({
-  editRow: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#fff', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 6, borderWidth: 1.5, borderColor: colors.amber + '55', gap: 6, elevation: 1 },
+  editRow: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#fff', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 4, borderWidth: 1.5, borderColor: colors.amber + '55', gap: 6, elevation: 1 },
   badge: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6, paddingVertical: 5, borderRadius: 7, borderWidth: 1, width: 82, flexShrink: 0 },
   badgeText: { fontSize: 9, fontWeight: '700', letterSpacing: 0.2, flex: 1 },
   editInput: { flex: 1, fontSize: 13, color: colors.text, paddingVertical: 5, paddingHorizontal: 8, backgroundColor: '#f8fafc', borderRadius: 7, minHeight: 34 },
@@ -456,6 +476,8 @@ export default function ScanScreen() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [localFields, setLocalFields] = useState<FieldItem[]>([]);
   const [qrBanner, setQrBanner] = useState<{ cardId: string; fields: Partial<Record<string, string>> } | null>(null);
+  // ── field-level errors from backend ──────────────────
+  const [saveFieldErrors, setSaveFieldErrors] = useState<Record<string, string>>({});
 
   const [showCam, setShowCam] = useState(true);
   const [phase, setPhase] = useState<CameraPhase>('front');
@@ -466,25 +488,20 @@ export default function ScanScreen() {
 
   useFocusEffect(useCallback(() => {
     setFrontUri(null); setPhase('front'); setExpandedId(null); setEditingId(null); setLocalFields([]);
-    setShowCam(true); setQrBanner(null); liveQR.current = null;
+    setShowCam(true); setQrBanner(null); liveQR.current = null; setSaveFieldErrors({});
     return () => { setShowCam(false); };
   }, []));
-const { openCamera: openCameraParam } = useLocalSearchParams<{ openCamera?: string }>();
- 
-// Add this useEffect right after your existing useEffect for setMenuVisible:
-useEffect(() => {
-  if (openCameraParam) {
-    // Force camera open whenever this param changes (new timestamp = new press)
-    setFrontUri(null);
-    setPhase('front');
-    liveQR.current = null;
-    setExpandedId(null);
-    setEditingId(null);
-    setLocalFields([]);
-    setQrBanner(null);
-    setShowCam(true);
-  }
-}, [openCameraParam]);
+
+  const { openCamera: openCameraParam } = useLocalSearchParams<{ openCamera?: string }>();
+
+  useEffect(() => {
+    if (openCameraParam) {
+      setFrontUri(null); setPhase('front'); liveQR.current = null;
+      setExpandedId(null); setEditingId(null); setLocalFields([]);
+      setQrBanner(null); setShowCam(true); setSaveFieldErrors({});
+    }
+  }, [openCameraParam]);
+
   const openCamera = useCallback(() => { setFrontUri(null); setPhase('front'); liveQR.current = null; setShowCam(true); }, []);
   const closeCamera = useCallback(() => { setShowCam(false); setFrontUri(null); setPhase('front'); liveQR.current = null; }, []);
   const onLiveQR = useCallback((d: string) => { liveQR.current = d; }, []);
@@ -496,7 +513,7 @@ useEffect(() => {
     } catch { return ''; }
   };
 
-const buildCard = useCallback(async (fUri: string, bUri?: string | null) => {
+  const buildCard = useCallback(async (fUri: string, bUri?: string | null) => {
     setIsProc(true); setProcStep('Running OCR…'); setShowCam(false);
     try {
       const ft = await runOCR(fUri), bt = bUri ? await runOCR(bUri) : '';
@@ -525,28 +542,20 @@ const buildCard = useCallback(async (fUri: string, bUri?: string | null) => {
       let qrFields: Partial<Record<string, string>> = {};
       if (qrRaw) {
         const parsed = parseQRToFields(qrRaw);
-          console.log('RAW QR:', qrRaw);  
-
-        // Only keep fields whose value actually exists in the raw QR string
+        console.log('RAW QR:', qrRaw);
         const verified: Partial<Record<string, string>> = {};
         for (const [k, v] of Object.entries(parsed)) {
           if (!v || !v.trim()) continue;
-          if (qrRaw.toLowerCase().includes(v.toLowerCase().trim())) {
-            verified[k] = v;
-          }
+          if (qrRaw.toLowerCase().includes(v.toLowerCase().trim())) { verified[k] = v; }
         }
         qrFields = verified;
-
         if (Object.keys(qrFields).length > 0) {
           const existVals = new Set(fields.map(f => f.value.toLowerCase().trim()));
           const typeMap: Record<string, string> = { name: 'name', phone: 'phone', email: 'email', website: 'website', company: 'company', designation: 'designation', address: 'address', gst: 'gst', qrdetail: 'qrdetail' };
           Object.entries(qrFields).forEach(([k, v]) => {
             if (!v || !v.length) return;
             const t = typeMap[k] || k;
-            if (!existVals.has(v.toLowerCase().trim())) {
-              fields.push({ id: uid(`qr-${t}`), type: t, value: v, order: fields.length });
-              existVals.add(v.toLowerCase().trim());
-            }
+            if (!existVals.has(v.toLowerCase().trim())) { fields.push({ id: uid(`qr-${t}`), type: t, value: v, order: fields.length }); existVals.add(v.toLowerCase().trim()); }
           });
           fields.forEach((f, i) => { f.order = i; });
         }
@@ -555,48 +564,32 @@ const buildCard = useCallback(async (fUri: string, bUri?: string | null) => {
       const card: ExtendedScannedCard = { id: uid('card'), uri: fUri, ...(bUri ? { backUri: bUri, hasBothSides: true } : {}), data: { fullText } as OCRData, fields, tags: [], createdAt: new Date().toISOString(), exported: false };
       addCard(card);
       setExpandedId(card.id); setLocalFields((card.fields || []).map(f => ({ ...f }))); setEditingId(card.id);
-
-      // Only show banner if there are verified non-qrdetail fields
       const bannerFields = Object.fromEntries(Object.entries(qrFields).filter(([k]) => k !== 'qrdetail'));
       if (qrRaw && Object.keys(bannerFields).length > 0) setQrBanner({ cardId: card.id, fields: bannerFields });
-
     } catch (e: any) { Alert.alert('Processing Failed', e.message ?? 'Unknown error'); }
     finally { setIsProc(false); setProcStep(''); }
   }, [addCard, openCamera]);
+
   const onCapture = useCallback(async (uri: string) => {
     if (phase === 'front') { setFrontUri(uri); setPhase('back'); }
     else { const f = frontUri!; setFrontUri(null); setPhase('front'); await buildCard(f, uri); }
   }, [phase, frontUri, buildCard]);
 
   const onSkip = useCallback(() => {
-    if (phase === 'back' && frontUri) {
-      const f = frontUri;
-      setFrontUri(null); setPhase('front'); buildCard(f, null);
-    }
+    if (phase === 'back' && frontUri) { const f = frontUri; setFrontUri(null); setPhase('front'); buildCard(f, null); }
   }, [phase, frontUri, buildCard]);
 
   const onGallery = useCallback(async () => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') { Alert.alert('Permission Required', 'Allow photo library access.'); return; }
-      
-      const res = await ImagePicker.launchImageLibraryAsync({ 
-        mediaTypes: ImagePicker.MediaTypeOptions.Images, 
-        quality: 0.95, 
-        allowsMultipleSelection: true, 
-        selectionLimit: 2 
-      });
-
+      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.95, allowsMultipleSelection: true, selectionLimit: 2 });
       if (res.canceled || !res.assets || res.assets.length === 0) return;
-
-      // Handle two images picked at once
       if (res.assets.length >= 2) {
         const p1 = await ImageManipulator.manipulateAsync(res.assets[0].uri, [{ resize: { width: 1400 } }], { compress: 0.92, format: ImageManipulator.SaveFormat.JPEG });
         const p2 = await ImageManipulator.manipulateAsync(res.assets[1].uri, [{ resize: { width: 1400 } }], { compress: 0.92, format: ImageManipulator.SaveFormat.JPEG });
         await buildCard(p1.uri, p2.uri);
-      } 
-      // Handle single image pick based on phase
-      else {
+      } else {
         const proc = await ImageManipulator.manipulateAsync(res.assets[0].uri, [{ resize: { width: 1400 } }], { compress: 0.92, format: ImageManipulator.SaveFormat.JPEG });
         if (phase === 'front') { setFrontUri(proc.uri); setPhase('back'); }
         else { const f = frontUri!; setFrontUri(null); setPhase('front'); await buildCard(f, proc.uri); }
@@ -604,8 +597,14 @@ const buildCard = useCallback(async (fUri: string, bUri?: string | null) => {
     } catch (e: any) { Alert.alert('Gallery Error', e?.message || 'Could not open gallery.'); }
   }, [phase, frontUri, buildCard]);
 
-  const startEdit = useCallback((card: ExtendedScannedCard) => { setLocalFields((card.fields || []).map(f => ({ ...f }))); setEditingId(card.id); setExpandedId(card.id); }, []);
-  const cancelEdit = useCallback(() => { setEditingId(null); setLocalFields([]); }, []);
+  const startEdit = useCallback((card: ExtendedScannedCard) => {
+    setLocalFields((card.fields || []).map(f => ({ ...f })));
+    setEditingId(card.id);
+    setExpandedId(card.id);
+    setSaveFieldErrors({});
+  }, []);
+
+  const cancelEdit = useCallback(() => { setEditingId(null); setLocalFields([]); setSaveFieldErrors({}); }, []);
 
   const showSaved = useCallback((card: ExtendedScannedCard, fields: FieldItem[]) => {
     Alert.alert('Contact Saved ✅', 'What next?', [
@@ -615,34 +614,113 @@ const buildCard = useCallback(async (fUri: string, bUri?: string | null) => {
     ]);
   }, [openCamera]);
 
+  // ── field type → contact payload key mapping ──────────
+  const FIELD_TYPE_TO_PAYLOAD_KEY: Record<string, string> = {
+    phone: 'phoneNumber1',   // phoneNumber1/2/3 handled by index below
+    email: 'email1',
+    website: 'website1',
+    company: 'companyName',
+    subcompany: 'subCompanyName',
+    designation: 'designation',
+    name: 'personName',
+    address: 'address',
+    gst: 'gstNumber',
+    partnership: 'partnership',
+    qrdetail: 'qrCodeDetail',
+    service: 'servicesCsv',
+  };
+
+  // Map backend camelCase key back to field type for highlighting the right row
+  const PAYLOAD_KEY_TO_FIELD_TYPE: Record<string, string> = {
+    phoneNumber1: 'phone', phoneNumber2: 'phone', phoneNumber3: 'phone',
+    email1: 'email', email2: 'email',
+    website1: 'website', website2: 'website',
+    companyName: 'company', subCompanyName: 'subcompany',
+    designation: 'designation', personName: 'name',
+    address: 'address', gstNumber: 'gst',
+    partnership: 'partnership', qrCodeDetail: 'qrdetail',
+    servicesCsv: 'service',
+  };
+
   const saveEdit = useCallback(async (cardId: string) => {
     const card = (cards as ExtendedScannedCard[]).find(c => c.id === cardId); if (!card) return;
     const reord = localFields.map((f, i) => ({ ...f, order: i }));
     updateCard(cardId, { ...card, fields: reord } as unknown as ScannedCard);
     setIsSaving(true);
+    setSaveFieldErrors({});
     try {
       const get = (t: string, i = 0) => reord.filter(f => f.type === t)[i]?.value || '';
       const fi = await uriToBase64(card.uri), bi = card.hasBothSides && card.backUri ? await uriToBase64(card.backUri) : '';
-      await addContact({ companyName: get('company'), subCompanyName: get('subcompany'), branchName: '', personName: get('name'), designation: get('designation'), phoneNumber1: get('phone', 0), phoneNumber2: get('phone', 1), phoneNumber3: get('phone', 2), email1: get('email', 0), email2: get('email', 1), address: buildAddress(reord), servicesCsv: reord.filter(f => f.type === 'service').map(f => f.value).join(', '), website1: get('website', 0), website2: get('website', 1), rawExtractedText: (card.data as any)?.fullText || '', frontImageAsString: fi, frontImageMimeType: 'image/jpeg', backImageAsString: bi, backImageMimeType: 'image/jpeg', gstNumber: get('gst'), partnership: reord.filter(f => f.type === 'partnership').map(f => f.value).join(', '), qrCodeDetail: reord.filter(f => f.type === 'qrdetail').map(f => f.value).join('\n---\n') });
+      await addContact({
+        companyName: get('company'), subCompanyName: get('subcompany'), branchName: '',
+        personName: get('name'), designation: get('designation'),
+        phoneNumber1: get('phone', 0), phoneNumber2: get('phone', 1), phoneNumber3: get('phone', 2),
+        email1: get('email', 0), email2: get('email', 1),
+        address: buildAddress(reord),
+        servicesCsv: reord.filter(f => f.type === 'service').map(f => f.value).join(', '),
+        website1: get('website', 0), website2: get('website', 1),
+        rawExtractedText: (card.data as any)?.fullText || '',
+        frontImageAsString: fi, frontImageMimeType: 'image/jpeg',
+        backImageAsString: bi, backImageMimeType: 'image/jpeg',
+        gstNumber: get('gst'),
+        partnership: reord.filter(f => f.type === 'partnership').map(f => f.value).join(', '),
+        qrCodeDetail: reord.filter(f => f.type === 'qrdetail').map(f => f.value).join('\n---\n'),
+      });
       deleteCard(card.id); showSaved(card, reord);
-    } catch (e: any) { Alert.alert('Save Failed', extractApiError(e)); }
-    finally { setIsSaving(false); setEditingId(null); setLocalFields([]); }
+    } catch (e: any) {
+      // Extract field-level errors and map payload keys → field types
+      const raw = extractFieldErrors(e);
+      const mapped: Record<string, string> = {};
+      for (const [payloadKey, msg] of Object.entries(raw)) {
+        const fieldType = PAYLOAD_KEY_TO_FIELD_TYPE[payloadKey];
+        if (fieldType) mapped[fieldType] = msg;
+        else mapped[payloadKey] = msg;
+      }
+      setSaveFieldErrors(mapped);
+      // Show a concise Alert listing which fields failed
+      const lines = Object.entries(mapped).map(([ft, msg]) => `• ${fLabel(ft)}: ${msg}`).join('\n');
+      Alert.alert('Save Failed — Fix These Fields', lines || extractApiError(e));
+    }
+    finally { setIsSaving(false); }
   }, [cards, localFields, updateCard, addContact, deleteCard, showSaved]);
 
   const saveContact = async (card: ExtendedScannedCard) => {
     const fields = card.fields || [], get = (t: string, i = 0) => fields.filter(f => f.type === t)[i]?.value || '';
     try {
       const fi = await uriToBase64(card.uri), bi = card.hasBothSides && card.backUri ? await uriToBase64(card.backUri) : '';
-      await addContact({ companyName: get('company'), subCompanyName: get('subcompany'), branchName: '', personName: get('name'), designation: get('designation'), phoneNumber1: get('phone', 0), phoneNumber2: get('phone', 1), phoneNumber3: get('phone', 2), email1: get('email', 0), email2: get('email', 1), address: buildAddress(fields), servicesCsv: fields.filter(f => f.type === 'service').map(f => f.value).join(', '), website1: get('website', 0), website2: get('website', 1), rawExtractedText: (card.data as any)?.fullText || '', frontImageAsString: fi, frontImageMimeType: 'image/jpeg', backImageAsString: bi, backImageMimeType: 'image/jpeg', gstNumber: get('gst'), partnership: fields.filter(f => f.type === 'partnership').map(f => f.value).join(', '), qrCodeDetail: fields.filter(f => f.type === 'qrdetail').map(f => f.value).join('\n---\n') });
+      await addContact({
+        companyName: get('company'), subCompanyName: get('subcompany'), branchName: '',
+        personName: get('name'), designation: get('designation'),
+        phoneNumber1: get('phone', 0), phoneNumber2: get('phone', 1), phoneNumber3: get('phone', 2),
+        email1: get('email', 0), email2: get('email', 1),
+        address: buildAddress(fields),
+        servicesCsv: fields.filter(f => f.type === 'service').map(f => f.value).join(', '),
+        website1: get('website', 0), website2: get('website', 1),
+        rawExtractedText: (card.data as any)?.fullText || '',
+        frontImageAsString: fi, frontImageMimeType: 'image/jpeg',
+        backImageAsString: bi, backImageMimeType: 'image/jpeg',
+        gstNumber: get('gst'),
+        partnership: fields.filter(f => f.type === 'partnership').map(f => f.value).join(', '),
+        qrCodeDetail: fields.filter(f => f.type === 'qrdetail').map(f => f.value).join('\n---\n'),
+      });
       deleteCard(card.id); showSaved(card, fields);
     } catch (e: any) { Alert.alert('Save Failed', extractApiError(e)); }
   };
 
-  const upd = useCallback((id: string, v: string) => setLocalFields(p => p.map(f => f.id === id ? { ...f, value: v } : f)), []);
+  const upd = useCallback((id: string, v: string) => {
+    setLocalFields(p => p.map(f => f.id === id ? { ...f, value: v } : f));
+    // Clear error for this field's type when user edits it
+    setSaveFieldErrors(prev => {
+      const field = localFields.find(f => f.id === id);
+      if (!field || !prev[field.type]) return prev;
+      const next = { ...prev }; delete next[field.type]; return next;
+    });
+  }, [localFields]);
+
   const del = useCallback((id: string) => setLocalFields(p => p.filter(f => f.id !== id)), []);
   const chType = useCallback((id: string, t: string) => setLocalFields(p => p.map(f => f.id === id ? { ...f, type: t } : f)), []);
   const addF = useCallback((t: string, v: string) => setLocalFields(p => [...p, { id: uid(t), type: t, value: v, order: p.length }]), []);
-  
+
   const reclassify = useCallback(() => {
     const rc = reClassify(localFields);
     const n = rc.filter((f, i) => f.type !== localFields[i]?.type).length;
@@ -658,7 +736,7 @@ const buildCard = useCallback(async (fUri: string, bUri?: string | null) => {
     const dF = isEdit ? [...localFields].sort((a, b) => a.order - b.order) : (item.fields || []).sort((a, b) => a.order - b.order);
     const cardName = item.fields?.find(f => f.type === 'name')?.value || 'Business Card';
     const gstF = dF.find(f => f.type === 'gst'), partF = dF.filter(f => f.type === 'partnership'), qrF = dF.filter(f => f.type === 'qrdetail');
-    
+
     return (
       <View style={[scanStyles.card, { backgroundColor: colors.white }]}>
         {item.hasBothSides && item.backUri ? (
@@ -702,12 +780,25 @@ const buildCard = useCallback(async (fUri: string, bUri?: string | null) => {
               {!isEdit && gstF && <View style={S.gstBanner}><Ionicons name="receipt-outline" size={14} color="#0891b2" /><Text style={S.gstTxt}>GST: {gstF.value}</Text><TouchableOpacity onPress={() => copyField(gstF.value, 'gst')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Ionicons name="copy-outline" size={13} color="#0891b2" /></TouchableOpacity></View>}
               {!isEdit && partF.length > 0 && <View style={S.partnerBanner}><Ionicons name="handshake-outline" size={14} color="#16a34a" /><Text style={S.partnerTxt} numberOfLines={2}>{partF.map(f => f.value).join(' • ')}</Text></View>}
               {isEdit && <TouchableOpacity style={S.reclassBar} onPress={reclassify}><Ionicons name="sparkles" size={15} color={colors.amberDark} /><Text style={S.reclassText}>Auto-fix field types</Text><Ionicons name="chevron-forward" size={13} color={colors.amber} /></TouchableOpacity>}
-              {dF.map(f => <FieldRow key={f.id} field={f} isEdit={isEdit} onUpdate={upd} onDelete={del} onChangeType={chType} onCopy={copyField} />)}
+              {dF.map(f => (
+                <FieldRow
+                  key={f.id}
+                  field={f}
+                  isEdit={isEdit}
+                  onUpdate={upd}
+                  onDelete={del}
+                  onChangeType={chType}
+                  onCopy={copyField}
+                  error={isEdit ? saveFieldErrors[f.type] : undefined}
+                />
+              ))}
               {isEdit && <AddField onAdd={addF} />}
-              {isEdit && <View style={S.stickyBar}>
-                <TouchableOpacity style={S.stickyCancel} onPress={cancelEdit} disabled={isSaving}><Ionicons name="close-circle-outline" size={16} color="#dc2626" /><Text style={S.stickyCancelTxt}>Cancel</Text></TouchableOpacity>
-                <TouchableOpacity style={S.stickySave} onPress={() => saveEdit(item.id)} disabled={isSaving}>{isSaving ? <ActivityIndicator size="small" color={colors.navy} /> : <><Ionicons name="checkmark-circle-outline" size={16} color={colors.navy} /><Text style={S.stickySaveTxt}>Save & Sync Contact</Text></>}</TouchableOpacity>
-              </View>}
+              {isEdit && (
+                <View style={S.stickyBar}>
+                  <TouchableOpacity style={S.stickyCancel} onPress={cancelEdit} disabled={isSaving}><Ionicons name="close-circle-outline" size={16} color="#dc2626" /><Text style={S.stickyCancelTxt}>Cancel</Text></TouchableOpacity>
+                  <TouchableOpacity style={S.stickySave} onPress={() => saveEdit(item.id)} disabled={isSaving}>{isSaving ? <ActivityIndicator size="small" color={colors.navy} /> : <><Ionicons name="checkmark-circle-outline" size={16} color={colors.navy} /><Text style={S.stickySaveTxt}>Save & Sync Contact</Text></>}</TouchableOpacity>
+                </View>
+              )}
               {!isEdit && <>
                 <TouchableOpacity style={[scanStyles.rawButton, { backgroundColor: colors.amber + '15', borderColor: colors.amber, marginTop: 8 }]} onPress={() => saveContact(item)} disabled={savingContact}>
                   {savingContact ? <ActivityIndicator size="small" color={colors.amber} /> : <><Ionicons name="person-add-outline" size={14} color={colors.amberDark} /><Text style={[scanStyles.rawButtonText, { color: colors.amberDark }]}>Save as Contact</Text></>}
@@ -741,7 +832,13 @@ const buildCard = useCallback(async (fUri: string, bUri?: string | null) => {
           <TouchableOpacity style={{ backgroundColor: colors.amber, borderRadius: 8, padding: 8 }} onPress={openCamera}><Ionicons name="camera" size={18} color={colors.navy} /></TouchableOpacity>
         </View>
       </View>
-      <FlatList data={cards as ExtendedScannedCard[]} keyExtractor={i => i.id} renderItem={renderCard} contentContainerStyle={scanStyles.list} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled"
+      <FlatList
+        data={cards as ExtendedScannedCard[]}
+        keyExtractor={i => i.id}
+        renderItem={renderCard}
+        contentContainerStyle={scanStyles.list}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         ListEmptyComponent={<View style={scanStyles.emptyContainer}><View style={[scanStyles.emptyIcon, { backgroundColor: colors.amberLight }]}><Ionicons name="scan-outline" size={48} color={colors.amberDark} /></View><Text style={[scanStyles.emptyTitle, { color: colors.text }]}>Ready to scan</Text><Text style={[scanStyles.emptyText, { color: colors.muted }]}>Tap the camera button above</Text></View>}
       />
     </View>

@@ -22,7 +22,17 @@ export const settingsStyles = StyleSheet.create({
   body: {
     flex: 1,
   },
-
+// Add to your settingsStyles object
+inputError: {
+  borderColor: '#EF4444',
+  borderWidth: 1,
+},
+errorText: {
+  color: '#EF4444',
+  fontSize: 12,
+  marginTop: 4,
+  marginLeft: 4,
+},
   // ─── Scroll content padding ────────────────────────────────────────────────
   scrollContent: {
     paddingBottom:   20,

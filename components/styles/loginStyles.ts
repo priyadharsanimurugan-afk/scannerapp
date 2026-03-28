@@ -44,6 +44,12 @@ export const loginStyles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: isLargeScreen ? colors.navy : colors.phoneBg,
+    marginTop: isLargeScreen ? 0 : -40,
+  },
+  errorText: {
+    color: '#E24B4A',
+    fontSize: 12,
+    marginBottom: 8,
   },
 // Add to your loginStyles
 btnDisabled: {
@@ -138,6 +144,7 @@ toast: {
     paddingTop: isDesktop ? 0 : 20,
     paddingBottom: isDesktop ? 0 : 48,
    marginTop: isDesktop ? 0 : isTablet ? -0 : -40,
+
     position: 'relative',
   },
 

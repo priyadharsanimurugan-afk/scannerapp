@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -7,7 +7,6 @@ import {
   StatusBar,
   ScrollView,
   useWindowDimensions,
-  Platform,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -16,6 +15,7 @@ import { loginStyles } from "@/components/styles/loginStyles";
 import { colors } from "@/constants/colors";
 import { useMenuVisibility } from "@/context/MenuVisibilityContext";
 import { resetPasswordUser, resendResetCode } from "@/services/auth";
+import { Toast } from "@/components/webalert";
 
 export default function ResetPasswordScreen() {
   const { email } = useLocalSearchParams();
@@ -23,56 +23,199 @@ export default function ResetPasswordScreen() {
 
   const isDesktop = width >= 1024;
   const isTablet = width >= 768 && width < 1024;
-  const isLargeScreen = isDesktop || isTablet;
 
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPass, setConfirmPass] = useState("");
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
   const { setMenuVisible } = useMenuVisibility();
+  
+  // Refs for input fields
+  const codeRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
+  const confirmPassRef = useRef<TextInput>(null);
+
   useEffect(() => {
     setMenuVisible(false);
-    return () => { setMenuVisible(true); };
+    return () => {
+      setMenuVisible(true);
+    };
   }, [setMenuVisible]);
 
+  // Focus on first error field when errors occur
+  useEffect(() => {
+    const errorFields = Object.keys(fieldErrors);
+    if (errorFields.length === 0) return;
+
+    const focusTimeout = setTimeout(() => {
+      const firstErrorField = errorFields[0].toLowerCase();
+      
+      switch (firstErrorField) {
+        case 'code':
+          codeRef.current?.focus();
+          break;
+        case 'newpassword':
+        case 'password':
+          passwordRef.current?.focus();
+          break;
+        case 'confirmpassword':
+          confirmPassRef.current?.focus();
+          break;
+      }
+    }, 150);
+
+    return () => clearTimeout(focusTimeout);
+  }, [fieldErrors]);
+
+  const clearFieldError = (field: string) => {
+    setFieldErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors[field];
+      return newErrors;
+    });
+  };
+
+  const clearAllErrors = () => {
+    setFieldErrors({});
+  };
+
+  const extractErrorsWithField = (error: any): Record<string, string[]> => {
+    const data = error?.response?.data;
+    const errorsMap: Record<string, string[]> = {};
+
+    if (!data) {
+      errorsMap['general'] = [error?.message || "Something went wrong"];
+      return errorsMap;
+    }
+
+    if (data.errors) {
+      for (const [key, value] of Object.entries(data.errors)) {
+        if (Array.isArray(value)) {
+          let mappedKey = key.toLowerCase();
+          if (key === "NewPassword") {
+            mappedKey = "newpassword";
+          } else if (key === "Code") {
+            mappedKey = "code";
+          } else if (key === "ConfirmPassword") {
+            mappedKey = "confirmpassword";
+          }
+          errorsMap[mappedKey] = value as string[];
+        } else if (typeof value === 'string') {
+          let mappedKey = key.toLowerCase();
+          if (key === "NewPassword") {
+            mappedKey = "newpassword";
+          } else if (key === "Code") {
+            mappedKey = "code";
+          } else if (key === "ConfirmPassword") {
+            mappedKey = "confirmpassword";
+          }
+          errorsMap[mappedKey] = [value];
+        }
+      }
+    } else if (data.message) {
+      errorsMap['general'] = [data.message];
+    }
+
+    return errorsMap;
+  };
+
   const handleReset = async () => {
-    if (!code) { alert("Enter verification code"); return; }
-    if (password !== confirmPass) { alert("Passwords do not match"); return; }
+    // Clear previous errors
+    clearAllErrors();
+
+    // Frontend validation for password match only
+    if (password !== confirmPass) {
+      setFieldErrors({ confirmpassword: ["Passwords do not match"] });
+      confirmPassRef.current?.focus();
+      return;
+    }
 
     try {
       setLoading(true);
-      await resetPasswordUser({ email: String(email), code, newPassword: password });
-      alert("Password reset successful ✅");
-      router.replace("/login");
+      await resetPasswordUser({ 
+        email: String(email), 
+        code, 
+        newPassword: password 
+      });
+      
+      Toast.success("Password reset successful! Please login with your new password");
+      
+      setTimeout(() => {
+        router.replace("/login");
+      }, 1200);
+      
     } catch (error: any) {
-      alert(error?.response?.data?.message || "Reset failed");
+      const errors = extractErrorsWithField(error);
+      setFieldErrors(errors);
+      
+      // Focus on the field that has error
+      if (errors.code) {
+        codeRef.current?.focus();
+      } else if (errors.newpassword || errors.password) {
+        passwordRef.current?.focus();
+      } else if (errors.confirmpassword) {
+        confirmPassRef.current?.focus();
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const handleResendCode = async () => {
+    // Clear previous errors
+    clearAllErrors();
+    
     try {
       setResendLoading(true);
       await resendResetCode({ email: String(email) });
-      alert("Reset code resent to your email 📧");
+      
+      Toast.success("A new reset code has been sent to your email address");
+      
+      setTimeout(() => {
+        setCode("");
+        codeRef.current?.focus();
+      }, 500);
+      
     } catch (error: any) {
-      alert(error?.response?.data?.message || "Failed to resend code");
+      const errors = extractErrorsWithField(error);
+      setFieldErrors(errors);
+      codeRef.current?.focus();
+      
+      if (errors.email) {
+        Toast.error(errors.email[0]);
+      } else if (errors.general) {
+        Toast.error(errors.general[0]);
+      }
     } finally {
       setResendLoading(false);
     }
   };
 
+  const getFieldError = (field: string): string | null => {
+    const possibleFields = [field];
+    if (field === 'newpassword') {
+      possibleFields.push('password');
+    }
+    
+    for (const f of possibleFields) {
+      const errors = fieldErrors[f];
+      if (errors && errors.length > 0) {
+        return errors[0];
+      }
+    }
+    return null;
+  };
+
   // ── Shared Hero Content ────────────────────────────────────────────────────
   const renderHeroContent = () => (
     <>
-    
       <View style={loginStyles.heroGlow} />
 
       <TouchableOpacity
-        style={{ marginBottom: isDesktop ? 32 : 20 ,marginTop: isDesktop ? -100 : 20 }}
+        style={{ marginBottom: isDesktop ? 32 : 20, marginTop: isDesktop ? -100 : 20 }}
         onPress={() => router.replace("/login")}
       >
         <Icon name="arrow-back-outline" size={22} color={colors.white} />
@@ -94,7 +237,6 @@ export default function ResetPasswordScreen() {
         {email}
       </Text>
 
-      {/* Decorative info block for desktop */}
       {isDesktop && (
         <View style={{ marginTop: 40, gap: 16 }}>
           {[
@@ -121,92 +263,157 @@ export default function ResetPasswordScreen() {
   );
 
   // ── Shared Form Content ────────────────────────────────────────────────────
-  const renderFormContent = () => (
-    <View style={[loginStyles.card, isDesktop && { marginHorizontal: 0, marginTop: 0 }]}>
-
-      {/* CODE */}
-      <View style={loginStyles.inputGroup}>
-        <Text style={loginStyles.label}>Verification Code</Text>
-        <View style={loginStyles.inputWrap}>
-          <Icon name="key-outline" size={16} color={colors.muted} style={loginStyles.inputIcon} />
-          <TextInput
-            style={loginStyles.input}
-            placeholder="Enter code"
-            placeholderTextColor={colors.inputPlaceholder}
-            value={code}
-            onChangeText={setCode}
-            keyboardType="number-pad"
-          />
+  const renderFormContent = () => {
+    const codeError = getFieldError('code');
+    const passwordError = getFieldError('newpassword');
+    const confirmError = getFieldError('confirmpassword');
+    
+    return (
+      <View style={[loginStyles.card, isDesktop && { marginHorizontal: 0, marginTop: 0 }]}>
+        {/* CODE */}
+        <View style={loginStyles.inputGroup}>
+          <Text style={loginStyles.label}>Verification Code</Text>
+          <View style={[
+            loginStyles.inputWrap,
+            codeError && { borderColor: '#E24B4A' }
+          ]}>
+            <Icon name="key-outline" size={16} color={colors.muted} style={loginStyles.inputIcon} />
+            <TextInput
+              ref={codeRef}
+              style={loginStyles.input}
+              placeholder="Enter 6-digit code"
+              placeholderTextColor={colors.inputPlaceholder}
+              value={code}
+              onChangeText={(text) => {
+                setCode(text);
+                clearFieldError('code');
+              }}
+              keyboardType="number-pad"
+              maxLength={6}
+              returnKeyType="next"
+              onSubmitEditing={() => passwordRef.current?.focus()}
+              autoFocus={true}
+              editable={!loading}
+            />
+          </View>
+          {codeError && (
+            <Text style={loginStyles.errorText}>{codeError}</Text>
+          )}
         </View>
-      </View>
 
-      {/* NEW PASSWORD */}
-      <View style={loginStyles.inputGroup}>
-        <Text style={loginStyles.label}>New Password</Text>
-        <View style={loginStyles.inputWrap}>
-          <Icon name="lock-closed-outline" size={16} color={colors.muted} style={loginStyles.inputIcon} />
-          <TextInput
-            style={loginStyles.input}
-            placeholder="Enter new password"
-            placeholderTextColor={colors.inputPlaceholder}
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-          />
+        {/* NEW PASSWORD */}
+        <View style={loginStyles.inputGroup}>
+          <Text style={loginStyles.label}>New Password</Text>
+          <View style={[
+            loginStyles.inputWrap,
+            passwordError && { borderColor: '#E24B4A' }
+          ]}>
+            <Icon name="lock-closed-outline" size={16} color={colors.muted} style={loginStyles.inputIcon} />
+            <TextInput
+              ref={passwordRef}
+              style={loginStyles.input}
+              placeholder="Enter new password"
+              placeholderTextColor={colors.inputPlaceholder}
+              secureTextEntry
+              value={password}
+              onChangeText={(text) => {
+                setPassword(text);
+                clearFieldError('newpassword');
+                clearFieldError('password');
+                // Clear confirm password error when password changes
+                if (confirmError) {
+                  clearFieldError('confirmpassword');
+                }
+              }}
+              returnKeyType="next"
+              onSubmitEditing={() => confirmPassRef.current?.focus()}
+              editable={!loading}
+            />
+          </View>
+          {passwordError && (
+            <Text style={loginStyles.errorText}>{passwordError}</Text>
+          )}
+          
+          {/* Resend Code Link */}
+          <TouchableOpacity
+            style={{ alignSelf: "flex-end", marginTop: 8 }}
+            onPress={handleResendCode}
+            disabled={resendLoading || loading}
+          >
+            <Text style={{ 
+              color: colors.amber, 
+              fontWeight: "600", 
+              fontSize: 12,
+              opacity: (resendLoading || loading) ? 0.5 : 1
+            }}>
+              {resendLoading ? "Sending..." : "Resend Code"}
+            </Text>
+          </TouchableOpacity>
         </View>
-        {/* Resend Code */}
-        <TouchableOpacity
-          style={{ alignSelf: "flex-end", marginTop: 6 }}
-          onPress={handleResendCode}
-          disabled={resendLoading}
+
+        {/* CONFIRM PASSWORD */}
+        <View style={loginStyles.inputGroup}>
+          <Text style={loginStyles.label}>Confirm Password</Text>
+          <View style={[
+            loginStyles.inputWrap,
+            confirmError && { borderColor: '#E24B4A' }
+          ]}>
+            <Icon name="shield-checkmark-outline" size={16} color={colors.muted} style={loginStyles.inputIcon} />
+            <TextInput
+              ref={confirmPassRef}
+              style={loginStyles.input}
+              placeholder="Confirm password"
+              placeholderTextColor={colors.inputPlaceholder}
+              secureTextEntry
+              value={confirmPass}
+              onChangeText={(text) => {
+                setConfirmPass(text);
+                clearFieldError('confirmpassword');
+              }}
+              returnKeyType="done"
+              onSubmitEditing={handleReset}
+              editable={!loading}
+            />
+          </View>
+          {confirmError && (
+            <Text style={loginStyles.errorText}>{confirmError}</Text>
+          )}
+        </View>
+
+        {/* SUBMIT BUTTON */}
+        <TouchableOpacity 
+          style={[loginStyles.btn, loading && loginStyles.btnDisabled]} 
+          onPress={handleReset} 
+          disabled={loading}
         >
-          <Text style={{ color: colors.amber, fontWeight: "600", fontSize: 12 }}>
-            {resendLoading ? "Sending..." : "Resend Code"}
+          <Icon name={loading ? "refresh-outline" : "lock-open-outline"} size={18} color={colors.navy} />
+          <Text style={loginStyles.btnText}>
+            {loading ? "Resetting..." : "Reset Password"}
+          </Text>
+        </TouchableOpacity>
+
+        {/* BACK */}
+        <TouchableOpacity 
+          style={{ marginTop: 20, alignItems: "center" }} 
+          onPress={() => router.replace("/login")}
+          disabled={loading}
+        >
+          <Text style={[loginStyles.switchLink, loading && { opacity: 0.5 }]}>
+            Back to Sign In →
           </Text>
         </TouchableOpacity>
       </View>
-
-      {/* CONFIRM PASSWORD */}
-      <View style={loginStyles.inputGroup}>
-        <Text style={loginStyles.label}>Confirm Password</Text>
-        <View style={loginStyles.inputWrap}>
-          <Icon name="shield-checkmark-outline" size={16} color={colors.muted} style={loginStyles.inputIcon} />
-          <TextInput
-            style={loginStyles.input}
-            placeholder="Confirm password"
-            placeholderTextColor={colors.inputPlaceholder}
-            secureTextEntry
-            value={confirmPass}
-            onChangeText={setConfirmPass}
-          />
-        </View>
-      </View>
-
-      {/* SUBMIT BUTTON */}
-      <TouchableOpacity style={loginStyles.btn} onPress={handleReset} disabled={loading}>
-        <Icon name={loading ? "refresh-outline" : "lock-open-outline"} size={18} color={colors.navy} />
-        <Text style={loginStyles.btnText}>{loading ? "Resetting..." : "Reset Password"}</Text>
-      </TouchableOpacity>
-
-      {/* BACK */}
-      <TouchableOpacity style={{ marginTop: 20 }} onPress={() => router.replace("/login")}>
-        <Text style={loginStyles.switchLink}>Back to Sign In →</Text>
-      </TouchableOpacity>
-    </View>
-  );
+    );
+  };
 
   // ── DESKTOP LAYOUT ─────────────────────────────────────────────────────────
   if (isDesktop) {
     return (
       <SafeAreaView style={[loginStyles.container, { flexDirection: "row" }]} edges={["bottom"]}>
         <StatusBar barStyle="light-content" />
-
-        {/* Left hero panel */}
         <View style={[loginStyles.leftPanel, { flex: 1 }]}>
           {renderHeroContent()}
         </View>
-
-        {/* Right form panel */}
         <View style={loginStyles.rightPanel}>
           <ScrollView
             showsVerticalScrollIndicator={false}
@@ -230,6 +437,7 @@ export default function ResetPasswordScreen() {
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ flexGrow: 1 }}
+          keyboardShouldPersistTaps="handled"
         >
           <View style={{ alignSelf: "center", width: "100%", maxWidth: 680 }}>
             <View style={loginStyles.hero}>{renderHeroContent()}</View>
@@ -240,12 +448,17 @@ export default function ResetPasswordScreen() {
     );
   }
 
-  // ── MOBILE LAYOUT (original) ───────────────────────────────────────────────
+  // ── MOBILE LAYOUT ─────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={loginStyles.container}>
       <StatusBar barStyle="light-content" />
-      <View style={loginStyles.hero}>{renderHeroContent()}</View>
-      {renderFormContent()}
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={loginStyles.hero}>{renderHeroContent()}</View>
+        {renderFormContent()}
+      </ScrollView>
     </SafeAreaView>
   );
 }

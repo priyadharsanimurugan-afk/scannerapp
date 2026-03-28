@@ -26,6 +26,12 @@ export const verifyEmail = async (data: VerifyEmail) => {
   return res.data;
 };
 
+// RESEND VERIFY EMAIL
+
+export const resendVerifyEmail = async (email: string) => {
+  const res = await api.post("/auth/resend-verification", { email });
+  return res.data;
+};
 // LOGIN
 export const loginUser = async (data: Login) => {
   const res = await api.post("/auth/login", data);

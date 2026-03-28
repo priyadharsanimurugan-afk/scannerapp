@@ -14,7 +14,7 @@ export interface RefreshToken {
   refreshToken: string;
 }
 export interface Login {
-  email: string;
+  userName: string;
   password: string;
 }
 

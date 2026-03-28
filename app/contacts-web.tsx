@@ -15,7 +15,6 @@ import {
   Image,
   Modal,
   Linking,
-  Dimensions,
   Platform,
   useWindowDimensions,
 } from 'react-native';
@@ -69,7 +68,6 @@ const useToast = () => {
 const Toast = ({ msg, type }: { msg: string; type: ToastType }) => {
   const { width } = useWindowDimensions();
   const isMobile = width < 640;
-  
   return (
     <View style={{
       position: Platform.OS === 'web' ? ('fixed' as any) : 'absolute',
@@ -89,7 +87,6 @@ const Toast = ({ msg, type }: { msg: string; type: ToastType }) => {
       shadowRadius: 20,
       shadowOffset: { width: 0, height: 4 },
       elevation: 5,
-      ...(isMobile && { marginHorizontal: 'auto', maxWidth: '90%' }),
     }}>
       <Icon
         name={type === 'success' ? 'checkmark-circle' : type === 'error' ? 'alert-circle' : 'information-circle'}
@@ -109,7 +106,6 @@ const ConfirmDialog = ({ visible, title, message, confirmLabel = 'Confirm', dang
 }) => {
   const { width } = useWindowDimensions();
   const isMobile = width < 640;
-  
   if (!visible) return null;
   return (
     <Modal visible animationType="fade" transparent onRequestClose={onCancel}>
@@ -164,7 +160,7 @@ const buildImageUri = (base64?: string, mime?: string, url?: string) => {
   return null;
 };
 
-// ─── Image Viewer with Next/Previous Navigation ─────────────────────────────────
+// ─── Image Viewer ─────────────────────────────────────────────────────────────
 const ImageViewer = ({ visible, images, currentIndex, label, onClose, onNext, onPrev }: {
   visible: boolean; images: Array<{ uri: string | null; label: string }>; currentIndex: number;
   label: string; onClose: () => void; onNext: () => void; onPrev: () => void;
@@ -216,14 +212,7 @@ const ImageViewer = ({ visible, images, currentIndex, label, onClose, onNext, on
     <TouchableOpacity
       key={title}
       onPress={action}
-      style={{
-        width: isMobile ? 32 : 36,
-        height: isMobile ? 32 : 36,
-        borderRadius: 8,
-        backgroundColor: 'rgba(255,255,255,0.13)',
-        justifyContent: 'center',
-        alignItems: 'center',
-      }}
+      style={{ width: isMobile ? 32 : 36, height: isMobile ? 32 : 36, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.13)', justifyContent: 'center', alignItems: 'center' }}
     >
       <Icon name={icon} size={isMobile ? 15 : 17} color="rgba(255,255,255,0.88)" />
     </TouchableOpacity>
@@ -240,18 +229,10 @@ const ImageViewer = ({ visible, images, currentIndex, label, onClose, onNext, on
         onMouseUp={Platform.OS === 'web' ? onMouseUp : undefined}
         onMouseLeave={Platform.OS === 'web' ? onMouseUp : undefined}
       >
-        {/* Top bar */}
         <View style={{
-          position: 'absolute' as any,
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 10,
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          paddingHorizontal: isMobile ? 12 : 24,
-          paddingVertical: isMobile ? 10 : 14,
+          position: 'absolute' as any, top: 0, left: 0, right: 0, zIndex: 10,
+          flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+          paddingHorizontal: isMobile ? 12 : 24, paddingVertical: isMobile ? 10 : 14,
           backgroundColor: 'rgba(0,0,0,0.55)',
           ...(Platform.OS === 'web' && { backdropFilter: 'blur(12px)' }),
         }}>
@@ -279,73 +260,34 @@ const ImageViewer = ({ visible, images, currentIndex, label, onClose, onNext, on
           </View>
         </View>
 
-        {/* Previous Button */}
         {hasPrev && (
           <TouchableOpacity
             onPress={onPrev}
-            style={{
-              position: 'absolute' as any,
-              left: isMobile ? 12 : 24,
-              top: '50%',
-              transform: [{ translateY: -25 }],
-              width: isMobile ? 40 : 50,
-              height: isMobile ? 40 : 50,
-              borderRadius: isMobile ? 20 : 25,
-              backgroundColor: 'rgba(0,0,0,0.6)',
-              justifyContent: 'center',
-              alignItems: 'center',
-              zIndex: 10,
-            }}
+            style={{ position: 'absolute' as any, left: isMobile ? 12 : 24, top: '50%', transform: [{ translateY: -25 }], width: isMobile ? 40 : 50, height: isMobile ? 40 : 50, borderRadius: isMobile ? 20 : 25, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', zIndex: 10 }}
           >
             <Icon name="chevron-back" size={isMobile ? 24 : 28} color="#fff" />
           </TouchableOpacity>
         )}
 
-        {/* Next Button */}
         {hasNext && (
           <TouchableOpacity
             onPress={onNext}
-            style={{
-              position: 'absolute' as any,
-              right: isMobile ? 12 : 24,
-              top: '50%',
-              transform: [{ translateY: -25 }],
-              width: isMobile ? 40 : 50,
-              height: isMobile ? 40 : 50,
-              borderRadius: isMobile ? 20 : 25,
-              backgroundColor: 'rgba(0,0,0,0.6)',
-              justifyContent: 'center',
-              alignItems: 'center',
-              zIndex: 10,
-            }}
+            style={{ position: 'absolute' as any, right: isMobile ? 12 : 24, top: '50%', transform: [{ translateY: -25 }], width: isMobile ? 40 : 50, height: isMobile ? 40 : 50, borderRadius: isMobile ? 20 : 25, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', zIndex: 10 }}
           >
             <Icon name="chevron-forward" size={isMobile ? 24 : 28} color="#fff" />
           </TouchableOpacity>
         )}
 
-        {/* Image area */}
         <View
           onMouseDown={Platform.OS === 'web' ? onMouseDown : undefined}
           onWheel={Platform.OS === 'web' ? onWheel : undefined}
           style={{
-            transform: [
-              { translateX: offset.x },
-              { translateY: offset.y },
-              { scale },
-              { rotate: `${rotate}deg` as any },
-            ],
-            ...(Platform.OS === 'web' && {
-              cursor: dragRef.current.active ? 'grabbing' : 'grab',
-              userSelect: 'none',
-            }),
+            transform: [{ translateX: offset.x }, { translateY: offset.y }, { scale }, { rotate: `${rotate}deg` as any }],
+            ...(Platform.OS === 'web' && { cursor: dragRef.current.active ? 'grabbing' : 'grab', userSelect: 'none' }),
           }}
         >
           {uri ? (
-            <Image
-              source={{ uri }}
-              style={[imageSize, { borderRadius: 6 }]}
-              resizeMode="contain"
-            />
+            <Image source={{ uri }} style={[imageSize, { borderRadius: 6 }]} resizeMode="contain" />
           ) : (
             <View style={[imageSize, { alignItems: 'center', justifyContent: 'center', gap: 14 }]}>
               <Icon name="image-outline" size={isMobile ? 40 : 60} color="rgba(255,255,255,0.2)" />
@@ -354,7 +296,6 @@ const ImageViewer = ({ visible, images, currentIndex, label, onClose, onNext, on
           )}
         </View>
 
-        {/* Hint */}
         {!isMobile && (
           <Text style={{ position: 'absolute' as any, bottom: 18, color: 'rgba(255,255,255,0.2)', fontSize: 11 }}>
             Scroll to zoom · Drag to pan · Toolbar to rotate · Use arrows to navigate
@@ -365,14 +306,23 @@ const ImageViewer = ({ visible, images, currentIndex, label, onClose, onNext, on
   );
 };
 
-// ─── Edit Field ───────────────────────────────────────────────────────────────
-const EditField = React.memo(({ label, value, onChange, keyboardType }: {
-  label: string; value: string; onChange: (v: string) => void; keyboardType?: any;
+// ─── Edit Field — now supports error state ────────────────────────────────────
+const EditField = React.memo(({ label, value, onChange, keyboardType, error }: {
+  label: string; value: string; onChange: (v: string) => void;
+  keyboardType?: any; error?: string;
 }) => (
   <View style={contactsStyles.editField}>
     <Text style={contactsStyles.editFieldLabel}>{label}</Text>
     <TextInput
-      style={[contactsStyles.editFieldInput, Platform.OS === 'web' && { outlineStyle: 'none' }]}
+      style={[
+        contactsStyles.editFieldInput,
+        Platform.OS === 'web' && { outlineStyle: 'none' },
+        error ? {
+          borderWidth: 1.5,
+          borderColor: colors.error,
+          backgroundColor: 'rgba(239,68,68,0.04)',
+        } : {},
+      ]}
       value={value}
       onChangeText={onChange}
       placeholder={`Enter ${label.toLowerCase()}…`}
@@ -381,6 +331,12 @@ const EditField = React.memo(({ label, value, onChange, keyboardType }: {
       autoCorrect={false}
       autoCapitalize="none"
     />
+    {error ? (
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+        <Icon name="alert-circle-outline" size={12} color={colors.error} />
+        <Text style={{ fontSize: 11, color: colors.error, fontWeight: '500' }}>{error}</Text>
+      </View>
+    ) : null}
   </View>
 ));
 
@@ -388,53 +344,90 @@ const EditField = React.memo(({ label, value, onChange, keyboardType }: {
 type EditForm = {
   personName: string; designation: string; companyName: string; subCompanyName: string;
   branchName: string; phoneNumber1: string; phoneNumber2: string; phoneNumber3: string;
-  email1: string; email2: string; address: string; website1: string; website2: string; servicesCsv: string;
-  // NEW FIELDS
-  qrCodeDetail: string;    // QR / Link
-  gstNumber: string;       // GST Number
-  partnership: string;     // Partnership
+  email1: string; email2: string; address: string; website1: string; website2: string;
+  servicesCsv: string; qrCodeDetail: string; gstNumber: string; partnership: string;
+};
+
+// Normalize PascalCase backend key → camelCase
+const normKey = (key: string) => key.charAt(0).toLowerCase() + key.slice(1);
+
+const extractFieldErrors = (error: any): Record<string, string> => {
+  const data = error?.response?.data;
+  const map: Record<string, string> = {};
+  if (!data?.errors) return map;
+  for (const [key, value] of Object.entries(data.errors)) {
+    const normalized = normKey(key);
+    const msgs = Array.isArray(value) ? value : [value];
+    if (msgs.length > 0) map[normalized] = msgs[0] as string;
+  }
+  return map;
 };
 
 const EditDialog = ({ visible, contact, onClose, onSave, saving }: {
   visible: boolean; contact: ContactDetail | null;
-  onClose: () => void; onSave: (form: EditForm) => void; saving: boolean;
+  onClose: () => void; onSave: (form: EditForm) => Promise<void>; saving: boolean;
 }) => {
   const { width } = useWindowDimensions();
   const isMobile = width < 640;
   const isTablet = width >= 640 && width < 1024;
-  
+
   const blank: EditForm = {
     personName: '', designation: '', companyName: '', subCompanyName: '',
     branchName: '', phoneNumber1: '', phoneNumber2: '', phoneNumber3: '',
-    email1: '', email2: '', address: '', website1: '', website2: '', servicesCsv: '',
-    qrCodeDetail: '', gstNumber: '', partnership: '',
+    email1: '', email2: '', address: '', website1: '', website2: '',
+    servicesCsv: '', qrCodeDetail: '', gstNumber: '', partnership: '',
   };
+
   const [form, setForm] = useState<EditForm>(blank);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    if (contact) setForm({
-      personName:     contact.personName     ?? '',
-      designation:    contact.designation    ?? '',
-      companyName:    contact.companyName    ?? '',
-      subCompanyName: contact.subCompanyName ?? '',
-      branchName:     contact.branchName     ?? '',
-      phoneNumber1:   contact.phoneNumber1   ?? '',
-      phoneNumber2:   contact.phoneNumber2   ?? '',
-      phoneNumber3:   contact.phoneNumber3   ?? '',
-      email1:         contact.email1         ?? '',
-      email2:         contact.email2         ?? '',
-      address:        contact.address        ?? '',
-      website1:       contact.website1       ?? '',
-      website2:       contact.website2       ?? '',
-      servicesCsv:    contact.servicesCsv    ?? '',
-      qrCodeDetail:   contact.qrCodeDetail   ?? '',   // new
-      gstNumber:      contact.gstNumber      ?? '',   // new
-      partnership:    contact.partnership    ?? '',   // new
-    });
+    if (contact) {
+      setForm({
+        personName:     contact.personName     ?? '',
+        designation:    contact.designation    ?? '',
+        companyName:    contact.companyName    ?? '',
+        subCompanyName: contact.subCompanyName ?? '',
+        branchName:     contact.branchName     ?? '',
+        phoneNumber1:   contact.phoneNumber1   ?? '',
+        phoneNumber2:   contact.phoneNumber2   ?? '',
+        phoneNumber3:   contact.phoneNumber3   ?? '',
+        email1:         contact.email1         ?? '',
+        email2:         contact.email2         ?? '',
+        address:        contact.address        ?? '',
+        website1:       contact.website1       ?? '',
+        website2:       contact.website2       ?? '',
+        servicesCsv:    contact.servicesCsv    ?? '',
+        qrCodeDetail:   contact.qrCodeDetail   ?? '',
+        gstNumber:      contact.gstNumber      ?? '',
+        partnership:    contact.partnership    ?? '',
+      });
+      setFieldErrors({});
+    }
   }, [contact?.id]);
 
-  const f = useCallback((key: keyof EditForm) => (v: string) =>
-    setForm((prev) => ({ ...prev, [key]: v })), []);
+  const f = useCallback((key: keyof EditForm) => (v: string) => {
+    setForm((prev) => ({ ...prev, [key]: v }));
+    // Clear error for this field as user types
+    setFieldErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }, []);
+
+  const handleSaveWithErrors = async () => {
+    setFieldErrors({});
+    try {
+      await onSave(form);
+      // onSave closes the dialog on success
+    } catch (error: any) {
+      const errors = extractFieldErrors(error);
+      setFieldErrors(errors);
+      // No toast — errors shown inline on fields
+    }
+  };
 
   const Row2 = ({ children }: { children: React.ReactNode }) => (
     <View style={{ flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 10 : 14 }}>
@@ -460,13 +453,9 @@ const EditDialog = ({ visible, contact, onClose, onSave, saving }: {
         }}>
           {/* Header */}
           <View style={{
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            paddingHorizontal: isMobile ? 20 : 28,
-            paddingVertical: isMobile ? 16 : 20,
-            borderBottomWidth: 1,
-            borderBottomColor: colors.border,
+            flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+            paddingHorizontal: isMobile ? 20 : 28, paddingVertical: isMobile ? 16 : 20,
+            borderBottomWidth: 1, borderBottomColor: colors.border,
           }}>
             <View>
               <Text style={{ fontSize: isMobile ? 16 : 18, fontWeight: '800', color: colors.text }}>Edit Contact</Text>
@@ -481,46 +470,70 @@ const EditDialog = ({ visible, contact, onClose, onSave, saving }: {
           </View>
 
           <ScrollView contentContainerStyle={{ padding: isMobile ? 20 : 28, paddingTop: 20 }}>
+
             <Text style={contactsStyles.editSectionHeading}>Personal</Text>
             <Row2>
-              <View style={{ flex: 1 }}><EditField label="Full Name"   value={form.personName}  onChange={f('personName')} /></View>
-              <View style={{ flex: 1 }}><EditField label="Designation" value={form.designation} onChange={f('designation')} /></View>
+              <View style={{ flex: 1 }}>
+                <EditField label="Full Name"   value={form.personName}  onChange={f('personName')}  error={fieldErrors.personName} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <EditField label="Designation" value={form.designation} onChange={f('designation')} error={fieldErrors.designation} />
+              </View>
             </Row2>
 
             <Text style={contactsStyles.editSectionHeading}>Company</Text>
             <Row2>
-              <View style={{ flex: 1 }}><EditField label="Company Name" value={form.companyName}    onChange={f('companyName')} /></View>
-              <View style={{ flex: 1 }}><EditField label="Sub Company"  value={form.subCompanyName} onChange={f('subCompanyName')} /></View>
+              <View style={{ flex: 1 }}>
+                <EditField label="Company Name" value={form.companyName}    onChange={f('companyName')}    error={fieldErrors.companyName} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <EditField label="Sub Company"  value={form.subCompanyName} onChange={f('subCompanyName')} error={fieldErrors.subCompanyName} />
+              </View>
             </Row2>
-            <EditField label="Branch" value={form.branchName} onChange={f('branchName')} />
+            <EditField label="Branch" value={form.branchName} onChange={f('branchName')} error={fieldErrors.branchName} />
 
             <Text style={contactsStyles.editSectionHeading}>Phone Numbers</Text>
             <Row2>
-              <View style={{ flex: 1 }}><EditField label="Phone 1" value={form.phoneNumber1} onChange={f('phoneNumber1')} keyboardType="phone-pad" /></View>
-              <View style={{ flex: 1 }}><EditField label="Phone 2" value={form.phoneNumber2} onChange={f('phoneNumber2')} keyboardType="phone-pad" /></View>
+              <View style={{ flex: 1 }}>
+                <EditField label="Phone 1" value={form.phoneNumber1} onChange={f('phoneNumber1')} keyboardType="phone-pad" error={fieldErrors.phoneNumber1} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <EditField label="Phone 2" value={form.phoneNumber2} onChange={f('phoneNumber2')} keyboardType="phone-pad" error={fieldErrors.phoneNumber2} />
+              </View>
             </Row2>
-            <EditField label="Phone 3" value={form.phoneNumber3} onChange={f('phoneNumber3')} keyboardType="phone-pad" />
+            <EditField label="Phone 3" value={form.phoneNumber3} onChange={f('phoneNumber3')} keyboardType="phone-pad" error={fieldErrors.phoneNumber3} />
 
             <Text style={contactsStyles.editSectionHeading}>Email</Text>
             <Row2>
-              <View style={{ flex: 1 }}><EditField label="Email 1" value={form.email1} onChange={f('email1')} keyboardType="email-address" /></View>
-              <View style={{ flex: 1 }}><EditField label="Email 2" value={form.email2} onChange={f('email2')} keyboardType="email-address" /></View>
+              <View style={{ flex: 1 }}>
+                <EditField label="Email 1" value={form.email1} onChange={f('email1')} keyboardType="email-address" error={fieldErrors.email1} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <EditField label="Email 2" value={form.email2} onChange={f('email2')} keyboardType="email-address" error={fieldErrors.email2} />
+              </View>
             </Row2>
 
             <Text style={contactsStyles.editSectionHeading}>Other</Text>
-            <EditField label="Address" value={form.address} onChange={f('address')} />
+            <EditField label="Address" value={form.address} onChange={f('address')} error={fieldErrors.address} />
             <Row2>
-              <View style={{ flex: 1 }}><EditField label="Website 1" value={form.website1} onChange={f('website1')} keyboardType="url" /></View>
-              <View style={{ flex: 1 }}><EditField label="Website 2" value={form.website2} onChange={f('website2')} keyboardType="url" /></View>
+              <View style={{ flex: 1 }}>
+                <EditField label="Website 1" value={form.website1} onChange={f('website1')} keyboardType="url" error={fieldErrors.website1} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <EditField label="Website 2" value={form.website2} onChange={f('website2')} keyboardType="url" error={fieldErrors.website2} />
+              </View>
             </Row2>
-            <EditField label="Services (comma separated)" value={form.servicesCsv} onChange={f('servicesCsv')} />
+            <EditField label="Services (comma separated)" value={form.servicesCsv} onChange={f('servicesCsv')} error={fieldErrors.servicesCsv} />
 
-            {/* NEW SECTION: QR Code & Business Info */}
             <Text style={contactsStyles.editSectionHeading}>QR Code & Business</Text>
-            <EditField label="QR / Link" value={form.qrCodeDetail} onChange={f('qrCodeDetail')} keyboardType="url" />
+            <EditField label="QR / Link" value={form.qrCodeDetail} onChange={f('qrCodeDetail')} keyboardType="url" error={fieldErrors.qrCodeDetail} />
             <Row2>
-              <View style={{ flex: 1 }}><EditField label="GST Number" value={form.gstNumber} onChange={f('gstNumber')} /></View>
-              <View style={{ flex: 1 }}><EditField label="Partnership" value={form.partnership} onChange={f('partnership')} /></View>
+              <View style={{ flex: 1 }}>
+                <EditField label="GST Number" value={form.gstNumber}   onChange={f('gstNumber')}   error={fieldErrors.gstNumber} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <EditField label="Partnership" value={form.partnership} onChange={f('partnership')} error={fieldErrors.partnership} />
+              </View>
             </Row2>
 
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 24 }}>
@@ -535,7 +548,7 @@ const EditDialog = ({ visible, contact, onClose, onSave, saving }: {
                   flex: 2, flexDirection: 'row', gap: 8, paddingVertical: isMobile ? 11 : 13, borderRadius: 11,
                   backgroundColor: colors.amber, justifyContent: 'center', alignItems: 'center',
                 }, saving && { opacity: 0.65 }]}
-                onPress={() => onSave(form)}
+                onPress={handleSaveWithErrors}
                 disabled={saving}
               >
                 {saving
@@ -547,6 +560,7 @@ const EditDialog = ({ visible, contact, onClose, onSave, saving }: {
                 }
               </TouchableOpacity>
             </View>
+
           </ScrollView>
         </View>
       </View>
@@ -564,7 +578,6 @@ const DetailPanel = ({ visible, contact, loading: loadingDetail, onClose, onEdit
   const { width } = useWindowDimensions();
   const isMobile = width < 640;
   const isTablet = width >= 640 && width < 1024;
-  
   const panelWidth = isMobile ? width : isTablet ? 380 : 400;
 
   const InfoRow = ({ icon, label, value, href }: { icon: string; label: string; value: string; href?: string }) => (
@@ -593,19 +606,10 @@ const DetailPanel = ({ visible, contact, loading: loadingDetail, onClose, onEdit
 
   const panelStyle: any = {
     position: Platform.OS === 'web' ? ('fixed' as any) : 'absolute',
-    right: 0,
-    top: 0,
-    bottom: 0,
-    width: panelWidth,
-    backgroundColor: '#fff',
-    borderLeftWidth: 1,
-    borderLeftColor: colors.border,
-    zIndex: 100,
-    flexDirection: 'column',
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 30,
-    shadowOffset: { width: -4, height: 0 },
+    right: 0, top: 0, bottom: 0, width: panelWidth,
+    backgroundColor: '#fff', borderLeftWidth: 1, borderLeftColor: colors.border,
+    zIndex: 100, flexDirection: 'column',
+    shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 30, shadowOffset: { width: -4, height: 0 },
     elevation: 5,
     transform: [{ translateX: visible ? 0 : panelWidth }],
     transition: Platform.OS === 'web' ? 'transform 0.28s cubic-bezier(0.4,0,0.2,1)' : undefined,
@@ -626,36 +630,20 @@ const DetailPanel = ({ visible, contact, loading: loadingDetail, onClose, onEdit
 
   const personName = contact.personName ?? 'Unknown';
   const avatarBg   = getAvatarColor(personName);
-
   const frontUri   = buildImageUri(contact.frontImage, contact.frontImageMimeType);
   const backUri    = buildImageUri(contact.backImage,  contact.backImageMimeType);
-  const cardImages = [
-    { uri: frontUri, label: 'Front' },
-    { uri: backUri, label: 'Back' },
-  ].filter(img => img.uri !== null);
-
+  const cardImages = [{ uri: frontUri, label: 'Front' }, { uri: backUri, label: 'Back' }].filter(img => img.uri !== null);
   const phones     = [contact.phoneNumber1, contact.phoneNumber2, contact.phoneNumber3].filter(Boolean) as string[];
   const emails     = [contact.email1, contact.email2].filter(Boolean) as string[];
   const websites   = [contact.website1, contact.website2].filter(Boolean) as string[];
   const services   = contact.servicesCsv ? contact.servicesCsv.split(',').map((s) => s.trim()).filter(Boolean) : [];
 
-  const handleImageClick = (index: number) => {
-    setViewingImage({ images: cardImages, currentIndex: index });
-  };
-
   return (
     <View style={panelStyle}>
-      {/* Top bar */}
       <View style={{
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: isMobile ? 14 : 18,
-        paddingVertical: isMobile ? 12 : 14,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.border,
-        backgroundColor: '#fff',
-        flexShrink: 0,
+        flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+        paddingHorizontal: isMobile ? 14 : 18, paddingVertical: isMobile ? 12 : 14,
+        borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: '#fff', flexShrink: 0,
       }}>
         <TouchableOpacity
           onPress={onClose}
@@ -681,7 +669,6 @@ const DetailPanel = ({ visible, contact, loading: loadingDetail, onClose, onEdit
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-        {/* Hero */}
         <View style={[contactsStyles.detailHero, { paddingVertical: isMobile ? 18 : 22 }]}>
           <View style={contactsStyles.detailHeroGlow} />
           <View style={[contactsStyles.detailAvatar, { backgroundColor: avatarBg, width: isMobile ? 80 : 100, height: isMobile ? 80 : 100, borderRadius: isMobile ? 40 : 50 }]}>
@@ -692,14 +679,13 @@ const DetailPanel = ({ visible, contact, loading: loadingDetail, onClose, onEdit
           {contact.companyName && <Text style={[contactsStyles.detailCompany, { fontSize: isMobile ? 13 : 14 }]}>{contact.companyName}</Text>}
         </View>
 
-        {/* Card images */}
         {cardImages.length > 0 && (
           <View style={[contactsStyles.detailCardsRow, { paddingHorizontal: isMobile ? 12 : 14, gap: isMobile ? 8 : 10 }]}>
             {cardImages.map((img, idx) => (
               <TouchableOpacity
                 key={idx}
                 style={[contactsStyles.detailCardBox, { width: isMobile ? '48%' : 'auto', cursor: Platform.OS === 'web' ? 'zoom-in' : undefined }]}
-                onPress={() => handleImageClick(idx)}
+                onPress={() => setViewingImage({ images: cardImages, currentIndex: idx })}
                 activeOpacity={0.85}
               >
                 {img.uri
@@ -718,20 +704,15 @@ const DetailPanel = ({ visible, contact, loading: loadingDetail, onClose, onEdit
           </View>
         )}
 
-        {/* Sections */}
         <View style={[contactsStyles.detailBody, { paddingHorizontal: isMobile ? 12 : 14 }]}>
           {phones.length > 0 && (
             <Section title="Phone Numbers">
-              {phones.map((p, i) => (
-                <InfoRow key={i} icon="call-outline" label={['Primary', 'Office', 'Mobile'][i] ?? 'Phone'} value={p} href={`tel:${p}`} />
-              ))}
+              {phones.map((p, i) => <InfoRow key={i} icon="call-outline" label={['Primary', 'Office', 'Mobile'][i] ?? 'Phone'} value={p} href={`tel:${p}`} />)}
             </Section>
           )}
           {emails.length > 0 && (
             <Section title="Email Addresses">
-              {emails.map((e, i) => (
-                <InfoRow key={i} icon="mail-outline" label={`Email ${i + 1}`} value={e} href={`mailto:${e}`} />
-              ))}
+              {emails.map((e, i) => <InfoRow key={i} icon="mail-outline" label={`Email ${i + 1}`} value={e} href={`mailto:${e}`} />)}
             </Section>
           )}
           {(contact.companyName || contact.subCompanyName || contact.branchName) && (
@@ -748,9 +729,7 @@ const DetailPanel = ({ visible, contact, loading: loadingDetail, onClose, onEdit
           )}
           {websites.length > 0 && (
             <Section title="Websites">
-              {websites.map((w, i) => (
-                <InfoRow key={i} icon="globe-outline" label={`Website ${i + 1}`} value={w} href={w.startsWith('http') ? w : `https://${w}`} />
-              ))}
+              {websites.map((w, i) => <InfoRow key={i} icon="globe-outline" label={`Website ${i + 1}`} value={w} href={w.startsWith('http') ? w : `https://${w}`} />)}
             </Section>
           )}
           {services.length > 0 && (
@@ -764,7 +743,6 @@ const DetailPanel = ({ visible, contact, loading: loadingDetail, onClose, onEdit
               </View>
             </Section>
           )}
-          {/* QR Code and Business Info sections */}
           {contact.qrCodeDetail ? (
             <Section title="QR Code">
               <InfoRow icon="qr-code-outline" label="QR / Link" value={contact.qrCodeDetail} href={contact.qrCodeDetail} />
@@ -824,11 +802,7 @@ const ContactCard = ({ contact, onPress, onDeleteRequest, selected }: {
       activeOpacity={0.78}
       onPress={() => onPress(contact)}
     >
-      <View style={[
-        contactsStyles.contactAvatar,
-        { backgroundColor: getAvatarColor(personName) },
-        isMobile && { marginBottom: 12 }
-      ]}>
+      <View style={[contactsStyles.contactAvatar, { backgroundColor: getAvatarColor(personName) }, isMobile && { marginBottom: 12 }]}>
         <Text style={contactsStyles.contactAvatarText}>{getInitials(personName)}</Text>
       </View>
 
@@ -863,12 +837,12 @@ const ContactCard = ({ contact, onPress, onDeleteRequest, selected }: {
   );
 };
 
-// ─── Search Input Component ─────────────────────────────────────────────────
+// ─── Search Input ─────────────────────────────────────────────────────────────
 const SearchInput = React.memo(({ value, onChange }: { value: string; onChange: (text: string) => void }) => {
   const inputRef = useRef<any>(null);
   const { width } = useWindowDimensions();
   const isMobile = width < 640;
-  
+
   useEffect(() => {
     if (inputRef.current && typeof inputRef.current.focus === 'function' && Platform.OS === 'web') {
       inputRef.current.focus();
@@ -881,11 +855,9 @@ const SearchInput = React.memo(({ value, onChange }: { value: string; onChange: 
         style={{ position: 'absolute', left: isMobile ? 12 : 14, top: isMobile ? 9 : 11, zIndex: 1 }} />
       <TextInput
         ref={inputRef}
-        style={[contactsStyles.searchInput, { 
-          paddingLeft: isMobile ? 38 : 44, 
-          paddingVertical: isMobile ? 8 : 10, 
-          fontSize: isMobile ? 13 : 14,
-          ...(Platform.OS === 'web' && { outlineStyle: 'none' })
+        style={[contactsStyles.searchInput, {
+          paddingLeft: isMobile ? 38 : 44, paddingVertical: isMobile ? 8 : 10, fontSize: isMobile ? 13 : 14,
+          ...(Platform.OS === 'web' && { outlineStyle: 'none' }),
         }]}
         placeholder="Search name, company, email…"
         placeholderTextColor={colors.inputPlaceholder}
@@ -897,10 +869,7 @@ const SearchInput = React.memo(({ value, onChange }: { value: string; onChange: 
         autoCapitalize="none"
       />
       {value.length > 0 && (
-        <TouchableOpacity
-          onPress={() => onChange('')}
-          style={{ position: 'absolute', right: isMobile ? 10 : 12, top: isMobile ? 8 : 10 }}
-        >
+        <TouchableOpacity onPress={() => onChange('')} style={{ position: 'absolute', right: isMobile ? 10 : 12, top: isMobile ? 8 : 10 }}>
           <Icon name="close-circle" size={isMobile ? 15 : 17} color={colors.muted} />
         </TouchableOpacity>
       )}
@@ -925,47 +894,41 @@ export default function ContactsScreen() {
   const [isExporting, setIsExporting] = useState(false);
   const { toast, show: showToast } = useToast();
   const { width: screenWidth } = useWindowDimensions();
-
-  // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const { contacts, loading, error, fetchContacts, fetchContact, removeContact, editContact: updateContactHook, total } = useContact(1, 50);
-
-  // Responsive columns
   const { columns, gap, paddingHorizontal, cardWidth } = getResponsiveConfig(screenWidth);
-  const CONTACTS_PER_PAGE = columns * 3; // 3 rows per page
+  const CONTACTS_PER_PAGE = columns * 3;
+  const [roles, setRoles] = useState<string[] | null>(null);
 
-  // Check admin role
   useEffect(() => {
     const checkRole = async () => {
-      const roles = await getRoles();
-      if (roles?.includes("Admin")) setIsAdmin(true);
+      const r = await getRoles();
+      if (r?.includes('Admin')) setIsAdmin(true);
     };
     checkRole();
+  }, []);
+
+  useEffect(() => {
+    const loadRoles = async () => setRoles(await getRoles());
+    loadRoles();
   }, []);
 
   useFocusEffect(useCallback(() => { fetchContacts(); setCurrentPage(1); }, []));
 
   const onRefresh = async () => { setRefreshing(true); await fetchContacts(1); setRefreshing(false); setCurrentPage(1); };
 
-  // Filter contacts based on search query
   const filteredContacts = contacts.filter((c) => {
     const q = searchQuery.toLowerCase();
-    return (
-      (!q || c.personName?.toLowerCase().includes(q) || c.companyName?.toLowerCase().includes(q) ||
-             c.email1?.toLowerCase().includes(q) || c.email2?.toLowerCase().includes(q)) 
-    );
+    return !q || c.personName?.toLowerCase().includes(q) || c.companyName?.toLowerCase().includes(q) ||
+           c.email1?.toLowerCase().includes(q) || c.email2?.toLowerCase().includes(q);
   });
 
-  // Pagination logic
-  const indexOfLastContact = currentPage * CONTACTS_PER_PAGE;
+  const indexOfLastContact  = currentPage * CONTACTS_PER_PAGE;
   const indexOfFirstContact = indexOfLastContact - CONTACTS_PER_PAGE;
-  const currentContacts = filteredContacts.slice(indexOfFirstContact, indexOfLastContact);
-  const totalPages = Math.ceil(filteredContacts.length / CONTACTS_PER_PAGE);
+  const currentContacts     = filteredContacts.slice(indexOfFirstContact, indexOfLastContact);
+  const totalPages          = Math.ceil(filteredContacts.length / CONTACTS_PER_PAGE);
 
-  // Reset to page 1 when search changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery]);
+  useEffect(() => { setCurrentPage(1); }, [searchQuery]);
 
   const handleContactPress = async (c: ContactDetail) => {
     setSelectedId(c.id);
@@ -982,21 +945,16 @@ export default function ContactsScreen() {
     }
   };
 
-  const handleDeleteRequest = (id: string | number, name: string) =>
-    setConfirmDelete({ id, name });
+  const handleDeleteRequest = (id: string | number, name: string) => setConfirmDelete({ id, name });
 
   const handleDeleteConfirm = async () => {
     if (!confirmDelete) return;
     try {
       await removeContact(confirmDelete.id);
-      if (selectedId === confirmDelete.id) {
-        setDetailVisible(false); setSelectedContact(null); setSelectedId(null);
-      }
+      if (selectedId === confirmDelete.id) { setDetailVisible(false); setSelectedContact(null); setSelectedId(null); }
       showToast('Contact deleted', 'success');
       await fetchContacts();
-      if (currentContacts.length === 1 && currentPage > 1) {
-        setCurrentPage(currentPage - 1);
-      }
+      if (currentContacts.length === 1 && currentPage > 1) setCurrentPage(currentPage - 1);
     } catch {
       showToast('Failed to delete contact', 'error');
     } finally {
@@ -1010,17 +968,18 @@ export default function ContactsScreen() {
     setEditVisible(true);
   };
 
+  // handleSave now throws on error so EditDialog can catch and set field errors
   const handleSave = async (form: any) => {
     if (!editContact) return;
     setSaving(true);
     try {
-      // The updateContactHook expects the form data that includes the new fields
       await updateContactHook(editContact.id, form);
       await fetchContacts();
       setEditVisible(false);
       showToast('Contact updated', 'success');
-    } catch {
-      showToast('Update failed', 'error');
+    } catch (err) {
+      setSaving(false);
+      throw err; // re-throw so EditDialog.handleSaveWithErrors catches it
     } finally {
       setSaving(false);
     }
@@ -1031,41 +990,19 @@ export default function ContactsScreen() {
     try {
       await exportContactsWeb();
       showToast('Export completed successfully', 'success');
-    } catch (error) {
+    } catch {
       showToast('Export failed. Please try again.', 'error');
     } finally {
       setIsExporting(false);
     }
   };
 
-  const nextPage = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1);
-    }
-  };
-
-  const prevPage = () => {
-    if (currentPage > 1) {
-      setCurrentPage(currentPage - 1);
-    }
-  };
-  const [roles, setRoles] = useState<string[] | null>(null);
-
-  useEffect(() => {
-    const loadRoles = async () => {
-      const storedRoles = await getRoles();
-      setRoles(storedRoles);
-    };
-    loadRoles();
-  }, []);
-  
-  // Get user details for sidebar
-  const getUserFullName = () => profile?.userName || "User";
-  const getUserInitials = () => profile?.userName ? getInitials(profile.userName) : "U";
-  const getUserAvatarColor = () => profile?.userName ? getAvatarColor(profile.userName) : colors.amber;
-
   const isMobile = screenWidth < 640;
   const isTablet = screenWidth >= 640 && screenWidth < 1024;
+
+  const getUserFullName  = () => profile?.userName || 'User';
+  const getUserInitials  = () => profile?.userName ? getInitials(profile.userName) : 'U';
+  const getUserAvatarColor = () => profile?.userName ? getAvatarColor(profile.userName) : colors.amber;
 
   const ContactsContent = () => {
     if (profileLoading) {
@@ -1080,9 +1017,8 @@ export default function ContactsScreen() {
       <View style={{ flex: 1, flexDirection: 'column', backgroundColor: colors.phoneBg }}>
         <StatusBar barStyle="light-content" />
 
-        {/* ── Fixed Header Section ── */}
+        {/* ── Fixed Header ── */}
         <View style={{ flexShrink: 0 }}>
-          {/* Page header */}
           <View style={{
             backgroundColor: colors.navy,
             paddingHorizontal: isMobile ? 20 : isTablet ? 24 : 32,
@@ -1094,54 +1030,25 @@ export default function ContactsScreen() {
             gap: isMobile ? 12 : 0,
           }}>
             <View>
-              <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: isMobile ? 9 : 10, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' }}>
-                Your network
-              </Text>
+              <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: isMobile ? 9 : 10, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' }}>Your network</Text>
               <Text style={{ color: '#fff', fontSize: isMobile ? 22 : 26, fontWeight: '800', marginTop: 3, letterSpacing: -0.5 }}>Contacts</Text>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <View style={{
-                backgroundColor: 'rgba(245,159,10,0.12)',
-                borderRadius: 20,
-                paddingHorizontal: isMobile ? 10 : 14,
-                paddingVertical: isMobile ? 5 : 7,
-                borderWidth: 1,
-                borderColor: 'rgba(245,159,10,0.2)',
-              }}>
+              <View style={{ backgroundColor: 'rgba(245,159,10,0.12)', borderRadius: 20, paddingHorizontal: isMobile ? 10 : 14, paddingVertical: isMobile ? 5 : 7, borderWidth: 1, borderColor: 'rgba(245,159,10,0.2)' }}>
                 <Text style={{ color: colors.amber, fontSize: isMobile ? 11 : 12, fontWeight: '700' }}>{total} total</Text>
               </View>
-              <TouchableOpacity
-                onPress={handleExport}
-                disabled={isExporting}
-                style={[contactsStyles.headerBtn, { opacity: isExporting ? 0.6 : 1, padding: isMobile ? 8 : 10 }]}
-              >
-                {isExporting ? (
-                  <ActivityIndicator size="small" color={colors.amber} />
-                ) : (
-                  <Icon name="download-outline" size={isMobile ? 14 : 16} color={colors.amber} />
-                )}
+              <TouchableOpacity onPress={handleExport} disabled={isExporting} style={[contactsStyles.headerBtn, { opacity: isExporting ? 0.6 : 1, padding: isMobile ? 8 : 10 }]}>
+                {isExporting ? <ActivityIndicator size="small" color={colors.amber} /> : <Icon name="download-outline" size={isMobile ? 14 : 16} color={colors.amber} />}
               </TouchableOpacity>
             </View>
           </View>
 
-          {/* Toolbar */}
           <View style={{ width: '100%', alignItems: 'center', backgroundColor: '#fff' }}>
-            <View style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 10,
-              width: '100%',
-              maxWidth: 1200,
-              paddingHorizontal: isMobile ? 16 : paddingHorizontal,
-              paddingVertical: isMobile ? 12 : 14,
-              borderBottomWidth: 1,
-              borderBottomColor: colors.border,
-            }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, width: '100%', maxWidth: 1200, paddingHorizontal: isMobile ? 16 : paddingHorizontal, paddingVertical: isMobile ? 12 : 14, borderBottomWidth: 1, borderBottomColor: colors.border }}>
               <SearchInput value={searchQuery} onChange={setSearchQuery} />
             </View>
           </View>
 
-          {/* Count row */}
           <View style={{ width: '100%', alignItems: 'center', backgroundColor: colors.phoneBg }}>
             <View style={{ width: '100%', maxWidth: 1200, paddingHorizontal: isMobile ? 16 : paddingHorizontal }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: isMobile ? 8 : 10 }}>
@@ -1167,6 +1074,7 @@ export default function ContactsScreen() {
         >
           <View style={{ width: '100%', alignItems: 'center' }}>
             <View style={{ width: '100%', maxWidth: 1200, paddingHorizontal: isMobile ? 16 : paddingHorizontal, paddingTop: 4, paddingBottom: isMobile ? 30 : 40 }}>
+
               {loading && !refreshing && contacts.length === 0 && (
                 <View style={{ padding: isMobile ? 40 : 60, alignItems: 'center' }}>
                   <ActivityIndicator size="large" color={colors.amber} />
@@ -1199,98 +1107,38 @@ export default function ContactsScreen() {
               )}
 
               {!error && currentContacts.length > 0 && (
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: gap }}>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap }}>
                   {currentContacts.map((c) => (
                     <View key={c.id} style={{ width: cardWidth, marginBottom: gap }}>
-                      <ContactCard
-                        contact={c}
-                        onPress={handleContactPress}
-                        onDeleteRequest={handleDeleteRequest}
-                        selected={selectedId === c.id && detailVisible}
-                      />
+                      <ContactCard contact={c} onPress={handleContactPress} onDeleteRequest={handleDeleteRequest} selected={selectedId === c.id && detailVisible} />
                     </View>
                   ))}
                 </View>
               )}
 
-              {/* Pagination Controls */}
+              {/* Pagination */}
               {totalPages > 1 && (
-                <View style={{
-                  flexDirection: 'row',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  gap: isMobile ? 12 : 16,
-                  marginTop: isMobile ? 20 : 24,
-                  marginBottom: isMobile ? 12 : 16,
-                  paddingVertical: isMobile ? 12 : 16,
-                  flexWrap: 'wrap',
-                }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: isMobile ? 12 : 16, marginTop: isMobile ? 20 : 24, marginBottom: isMobile ? 12 : 16, paddingVertical: isMobile ? 12 : 16, flexWrap: 'wrap' }}>
                   <TouchableOpacity
-                    onPress={prevPage}
+                    onPress={() => setCurrentPage(p => Math.max(1, p - 1))}
                     disabled={currentPage === 1}
-                    style={[
-                      {
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: isMobile ? 6 : 8,
-                        paddingHorizontal: isMobile ? 12 : 16,
-                        paddingVertical: isMobile ? 6 : 8,
-                        borderRadius: 10,
-                        backgroundColor: currentPage === 1 ? colors.border : colors.amber,
-                        opacity: currentPage === 1 ? 0.5 : 1,
-                      },
-                      currentPage === 1 && { cursor: Platform.OS === 'web' ? 'default' : undefined },
-                    ]}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: isMobile ? 6 : 8, paddingHorizontal: isMobile ? 12 : 16, paddingVertical: isMobile ? 6 : 8, borderRadius: 10, backgroundColor: currentPage === 1 ? colors.border : colors.amber, opacity: currentPage === 1 ? 0.5 : 1 }}
                   >
                     <Icon name="chevron-back-outline" size={isMobile ? 14 : 16} color={currentPage === 1 ? colors.muted : colors.navy} />
-                    <Text style={{
-                      fontSize: isMobile ? 12 : 13,
-                      fontWeight: '600',
-                      color: currentPage === 1 ? colors.muted : colors.navy,
-                    }}>Previous</Text>
+                    <Text style={{ fontSize: isMobile ? 12 : 13, fontWeight: '600', color: currentPage === 1 ? colors.muted : colors.navy }}>Previous</Text>
                   </TouchableOpacity>
 
-                  <View style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 8,
-                    backgroundColor: colors.phoneBg,
-                    paddingHorizontal: isMobile ? 12 : 16,
-                    paddingVertical: isMobile ? 5 : 6,
-                    borderRadius: 20,
-                  }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.phoneBg, paddingHorizontal: isMobile ? 12 : 16, paddingVertical: isMobile ? 5 : 6, borderRadius: 20 }}>
                     <Icon name="grid-outline" size={isMobile ? 12 : 14} color={colors.amber} />
-                    <Text style={{
-                      fontSize: isMobile ? 12 : 13,
-                      color: colors.text,
-                      fontWeight: '500',
-                    }}>
-                      Page {currentPage} of {totalPages}
-                    </Text>
+                    <Text style={{ fontSize: isMobile ? 12 : 13, color: colors.text, fontWeight: '500' }}>Page {currentPage} of {totalPages}</Text>
                   </View>
 
                   <TouchableOpacity
-                    onPress={nextPage}
+                    onPress={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                     disabled={currentPage === totalPages}
-                    style={[
-                      {
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: isMobile ? 6 : 8,
-                        paddingHorizontal: isMobile ? 12 : 16,
-                        paddingVertical: isMobile ? 6 : 8,
-                        borderRadius: 10,
-                        backgroundColor: currentPage === totalPages ? colors.border : colors.amber,
-                        opacity: currentPage === totalPages ? 0.5 : 1,
-                      },
-                      currentPage === totalPages && { cursor: Platform.OS === 'web' ? 'default' : undefined },
-                    ]}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: isMobile ? 6 : 8, paddingHorizontal: isMobile ? 12 : 16, paddingVertical: isMobile ? 6 : 8, borderRadius: 10, backgroundColor: currentPage === totalPages ? colors.border : colors.amber, opacity: currentPage === totalPages ? 0.5 : 1 }}
                   >
-                    <Text style={{
-                      fontSize: isMobile ? 12 : 13,
-                      fontWeight: '600',
-                      color: currentPage === totalPages ? colors.muted : colors.navy,
-                    }}>Next</Text>
+                    <Text style={{ fontSize: isMobile ? 12 : 13, fontWeight: '600', color: currentPage === totalPages ? colors.muted : colors.navy }}>Next</Text>
                     <Icon name="chevron-forward-outline" size={isMobile ? 14 : 16} color={currentPage === totalPages ? colors.muted : colors.navy} />
                   </TouchableOpacity>
                 </View>
@@ -1305,7 +1153,6 @@ export default function ContactsScreen() {
           </View>
         </ScrollView>
 
-        {/* ── Right: detail panel ── */}
         <DetailPanel
           visible={detailVisible}
           contact={selectedContact}
@@ -1319,13 +1166,7 @@ export default function ContactsScreen() {
   };
 
   return (
-    <SidebarLayout
-      isAdmin={isAdmin}
-      userInitials={getUserInitials()}
-      userAvatarColor={getUserAvatarColor()}
-      userName={getUserFullName()}
-      userRole={roles?.[0]}
-    >
+    <SidebarLayout isAdmin={isAdmin} userInitials={getUserInitials()} userAvatarColor={getUserAvatarColor()} userName={getUserFullName()} userRole={roles?.[0]}>
       <ContactsContent />
       <EditDialog
         visible={editVisible}

@@ -1,13 +1,12 @@
-import React, { useEffect, useState } from "react";
+// LoginScreen.tsx
+import React, { useEffect, useRef, useState } from "react";
 import {
   ScrollView,
   View,
   Text,
   TouchableOpacity,
-  StatusBar,
-  Platform,
-  Dimensions,
   useWindowDimensions,
+  TextInput,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { loginStyles } from "@/components/styles/loginStyles";
@@ -23,202 +22,210 @@ import {
   saveRememberedCredentials,
   clearRememberedCredentials,
 } from "@/utils/tokenStorage";
-import { router,  } from "expo-router";
+import { router } from "expo-router";
 
 const LoginScreen = () => {
   const { width } = useWindowDimensions();
-
   const isDesktop = width >= 1024;
   const isTablet = width >= 768 && width < 1024;
-  const isLargeScreen = isDesktop || isTablet;
 
   const {
-    // Login
-    loginEmail,
-    setLoginEmail,
-    loginPass,
-    setLoginPass,
-    showLoginPass,
-    setShowLoginPass,
-
-    // Signup
-    userName,
-    setUserName,
-    phoneNumber,
-    setPhoneNumber,
-    signupEmail,
-    setSignupEmail,
-    signupPass,
-    setSignupPass,
-    confirmPass,
-    setConfirmPass,
-    showSignupPass,
-    setShowSignupPass,
-    showConfirmPass,
-    setShowConfirmPass,
+    loginEmail, setLoginEmail,
+    loginPass, setLoginPass,
+    showLoginPass, setShowLoginPass,
+    userName, setUserName,
+    phoneNumber, setPhoneNumber,
+    signupEmail, setSignupEmail,
+    signupPass, setSignupPass,
+    confirmPass, setConfirmPass,
+    showSignupPass, setShowSignupPass,
+    showConfirmPass, setShowConfirmPass,
     passStrength,
-
-    // Forgot
-    forgotEmail,
-    setForgotEmail,
-
-    // UI
-    activeTab,
-    setActiveTab,
-    showForgot,
-    setShowForgot,
-    remember,
-    setRemember,
+    forgotEmail, setForgotEmail,
+    activeTab, setActiveTab,
+    showForgot, setShowForgot,
+    remember, setRemember,
+    
     loading,
-    toast,
-
-    // Functions
+    fieldErrors,
     handleLogin,
     handleSignup,
     handleForgot,
     checkStrength,
+    clearFieldError,
+    setFieldErrors,
   } = useAuth();
+
+  // Refs for input fields
+  const userNameRef = useRef<TextInput>(null);
+  const loginPassRef = useRef<TextInput>(null);
+  const signupUserNameRef = useRef<TextInput>(null);
+  const signupPhoneRef = useRef<TextInput>(null);
+  const signupEmailRef = useRef<TextInput>(null);
+  const signupPassRef = useRef<TextInput>(null);
+  const confirmPassRef = useRef<TextInput>(null);
+  const forgotEmailRef = useRef<TextInput>(null);
 
   const { setMenuVisible } = useMenuVisibility();
   const [isLoadingCredentials, setIsLoadingCredentials] = useState(true);
+  const handleTabSwitch = (tab: 'login' | 'signup') => {
+    setActiveTab(tab);
+    setFieldErrors({}); // Clear all errors when switching tabs
+    setShowForgot(false); // Also close forgot password if open
+  };
+  // Focus on first error field when errors occur
+  useEffect(() => {
+    const errorFields = Object.keys(fieldErrors);
+    if (errorFields.length === 0) return;
 
-  // Load remembered credentials on mount
+    // Focus on the first error field
+    const focusTimeout = setTimeout(() => {
+      const firstErrorField = errorFields[0].toLowerCase();
+      
+      switch (firstErrorField) {
+        case 'username':
+          if (activeTab === 'login') {
+            userNameRef.current?.focus();
+          } else if (activeTab === 'signup') {
+            signupUserNameRef.current?.focus();
+          }
+          break;
+        case 'password':
+          if (activeTab === 'login') {
+            loginPassRef.current?.focus();
+          } else if (activeTab === 'signup') {
+            signupPassRef.current?.focus();
+          }
+          break;
+        case 'email':
+          if (activeTab === 'signup') {
+            signupEmailRef.current?.focus();
+          } else if (showForgot) {
+            forgotEmailRef.current?.focus();
+          }
+          break;
+        case 'phonenumber':
+          if (activeTab === 'signup') {
+            signupPhoneRef.current?.focus();
+          }
+          break;
+        case 'confirmpassword':
+          if (activeTab === 'signup') {
+            confirmPassRef.current?.focus();
+          }
+          break;
+      }
+    }, 150);
+
+    return () => clearTimeout(focusTimeout);
+  }, [fieldErrors, activeTab, showForgot]);
+
   useEffect(() => {
     const loadRememberedCredentials = async () => {
-      try {
-        const { email, password } = await getRememberedCredentials();
-        if (email && password) {
-          setLoginEmail(email);
-          setLoginPass(password);
-          setRemember(true);
-        }
-      } catch (error) {
-        console.error("Failed to load remembered credentials:", error);
-      } finally {
-        setIsLoadingCredentials(false);
+      const { userName: rememberedUserName, password } = await getRememberedCredentials();
+
+      if (rememberedUserName && password && activeTab === "login") {
+        setUserName(rememberedUserName);
+        setLoginPass(password);
+        setRemember(true);
       }
+      setIsLoadingCredentials(false);
     };
 
     loadRememberedCredentials();
-  }, [setLoginEmail, setLoginPass, setRemember]);
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === "signup") {
+      setUserName("");
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     setMenuVisible(false);
-    return () => {
-      setMenuVisible(true);
-    };
+    return () => { setMenuVisible(true); };
   }, [setMenuVisible]);
 
-  // Handle remember me toggle
   const handleRememberMe = async (checked: boolean) => {
     setRemember(checked);
-    
-    // If unchecked, clear stored credentials
     if (!checked) {
       await clearRememberedCredentials();
     } else {
-      // If checked and both email and password exist, save them
-      if (loginEmail && loginPass) {
-        await saveRememberedCredentials(loginEmail, loginPass);
+      if (userName && loginPass) {
+        await saveRememberedCredentials(userName, loginPass);
       }
     }
   };
 
-  // Override handleLogin to save credentials when remember me is checked
   const handleLoginWithRemember = async () => {
     try {
-      // First, perform the login
       await handleLogin();
-      
-      // If login was successful and remember is checked, save credentials
-      if (remember && loginEmail && loginPass) {
-        await saveRememberedCredentials(loginEmail, loginPass);
+      if (remember && userName && loginPass) {
+        await saveRememberedCredentials(userName, loginPass);
       }
     } catch (error) {
       console.error("Login failed:", error);
     }
   };
 
-  // Shared auth form props
+  const handleFieldChange = (field: string) => {
+    clearFieldError(field);
+  };
+
   const authFormProps = {
-    loginEmail,
-    setLoginEmail,
-    loginPass,
-    setLoginPass,
-    showLoginPass,
-    setShowLoginPass,
-    userName,
-    setUserName,
-    phoneNumber,
-    setPhoneNumber,
-    signupEmail,
-    setSignupEmail,
-    signupPass,
-    setSignupPass,
-    confirmPass,
-    setConfirmPass,
-    showSignupPass,
-    setShowSignupPass,
-    showConfirmPass,
-    setShowConfirmPass,
+    loginEmail, setLoginEmail,
+    loginPass, setLoginPass,
+    showLoginPass, setShowLoginPass,
+    userName, setUserName,
+    phoneNumber, setPhoneNumber,
+    signupEmail, setSignupEmail,
+    signupPass, setSignupPass,
+    confirmPass, setConfirmPass,
+    showSignupPass, setShowSignupPass,
+    showConfirmPass, setShowConfirmPass,
     passStrength,
-    forgotEmail,
-    setForgotEmail,
+    forgotEmail, setForgotEmail,
     activeTab,
     showForgot,
     remember,
-    setRemember: handleRememberMe, // Use the custom handler
+    setRemember: handleRememberMe,
     loading,
-    setActiveTab,
+   setActiveTab: handleTabSwitch,
     setShowForgot,
-    handleLogin: handleLoginWithRemember, // Use the wrapped login function
+    handleLogin: handleLoginWithRemember,
     handleSignup,
     handleForgot,
+
     checkStrength,
+    fieldErrors,
+    clearFieldError: handleFieldChange,
+    userNameRef,
+    loginPassRef,
+    signupUserNameRef,
+    signupPhoneRef,
+    signupEmailRef,
+    signupPassRef,
+    confirmPassRef,
+    forgotEmailRef,
+    handleFieldChange,
   };
 
-  // ── Hero Section (shared across layouts) ────────────────────────────────────
+  // Rest of render methods remain the same...
   const renderHero = (hideTabsAndSub = false) => (
-    <View
-      style={[
-        loginStyles.hero,
-        isDesktop && { flex: 1 },
-        // ✅ ONLY for mobile
-        !isTablet && !isDesktop && {
-          marginTop: 0,
-        },
-      ]}
-    >
+    <View style={[loginStyles.hero, isDesktop && { flex: 1 }, !isTablet && !isDesktop && { marginTop: 10 }]}>
       <View style={loginStyles.heroGlow} />
-
       <View style={loginStyles.brand}>
         <View>
           <Image
             source={require("@/assets/images/scannerlogo.png")}
             style={[
-              {
-                width: isDesktop ? 60 : 50,
-                height: isDesktop ? 60 : 50,
-                resizeMode: "contain",
-                marginRight: 20,
-                marginTop: 20,
-              },
+              { width: isDesktop ? 60 : 50, height: isDesktop ? 60 : 50, resizeMode: "contain", marginRight: 20, marginTop: 20 },
               isDesktop && { marginTop: 120, marginRight: 20 },
             ]}
           />
         </View>
-
         <View>
-          <Text
-            style={[
-              loginStyles.brandName,
-              // ✅ only desktop
-              isDesktop && { marginTop: 120 },
-            ]}
-          >
-            CardScan Pro
-          </Text>
-
+          <Text style={[loginStyles.brandName, isDesktop && { marginTop: 120 }]}>CardScan Pro</Text>
           <Text style={loginStyles.brandTag}>Smart Business Card Scanner</Text>
         </View>
       </View>
@@ -229,205 +236,68 @@ const LoginScreen = () => {
       </Text>
 
       {!hideTabsAndSub && (
-        <Text style={loginStyles.heroSub}>
-          Sign in to access your scanned cards & network
-        </Text>
+        <Text style={loginStyles.heroSub}>Sign in to access your scanned cards & network</Text>
       )}
 
       {isDesktop && (
         <>
-          <Text style={loginStyles.heroSub}>
-            Sign in to access your scanned cards & network
-          </Text>
-          {/* Decorative features list for desktop left panel */}
+          <Text style={loginStyles.heroSub}>Sign in to access your scanned cards & network</Text>
           <View style={{ marginTop: 40, gap: 16 }}>
             {[
               { icon: "scan-outline", text: "Instantly scan business cards" },
               { icon: "people-outline", text: "Manage your entire network" },
-              {
-                icon: "cloud-upload-outline",
-                text: "Sync across all your devices",
-              },
+              { icon: "cloud-upload-outline", text: "Sync across all your devices" },
             ].map((item, i) => (
-              <View
-                key={i}
-                style={{ flexDirection: "row", alignItems: "center", gap: 14 }}
-              >
-                <View
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 10,
-                    backgroundColor: "rgba(245,159,10,0.15)",
-                    justifyContent: "center",
-                    alignItems: "center",
-                  }}
-                >
+              <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+                <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: "rgba(245,159,10,0.15)", justifyContent: "center", alignItems: "center" }}>
                   <Icon name={item.icon} size={18} color={colors.amber} />
                 </View>
-                <Text
-                  style={{
-                    color: "rgba(255,255,255,0.75)",
-                    fontSize: 14,
-                    fontWeight: "600",
-                  }}
-                >
-                  {item.text}
-                </Text>
+                <Text style={{ color: "rgba(255,255,255,0.75)", fontSize: 14, fontWeight: "600" }}>{item.text}</Text>
               </View>
             ))}
           </View>
         </>
       )}
 
-      {/* Tabs — shown on mobile and tablet, hidden on desktop */}
       {!isDesktop && (
         <View style={loginStyles.tabs}>
-          <TouchableOpacity
-            style={[
-              loginStyles.tab,
-              activeTab === "login" && loginStyles.activeTab,
-            ]}
-            onPress={() => setActiveTab("login")}
-          >
-            <Text
-              style={[
-                loginStyles.tabText,
-                activeTab === "login" && loginStyles.activeTabText,
-              ]}
-            >
-              Sign In
-            </Text>
+          <TouchableOpacity style={[loginStyles.tab, activeTab === "login" && loginStyles.activeTab]} onPress={() => handleTabSwitch("login")}>
+            <Text style={[loginStyles.tabText, activeTab === "login" && loginStyles.activeTabText]}>Sign In</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              loginStyles.tab,
-              activeTab === "signup" && loginStyles.activeTab,
-            ]}
-            onPress={() => setActiveTab("signup")}
-          >
-            <Text
-              style={[
-                loginStyles.tabText,
-                activeTab === "signup" && loginStyles.activeTabText,
-              ]}
-            >
-              Create Account
-            </Text>
+          <TouchableOpacity style={[loginStyles.tab, activeTab === "signup" && loginStyles.activeTab]} onPress={() => handleTabSwitch("signup")}>
+            <Text style={[loginStyles.tabText, activeTab === "signup" && loginStyles.activeTabText]}>Create Account</Text>
           </TouchableOpacity>
         </View>
       )}
     </View>
   );
 
-  // ── Bottom Info ─────────────────────────────────────────────────────────────
   const renderBottomInfo = () => (
-  <View style={loginStyles.bottomInfo}>
-  <Text style={loginStyles.bottomText}>
-    By continuing, you agree to our{" "}
-    <Text
-      style={loginStyles.bottomLink}
-      onPress={() => router.push("/privacy-policy")}
-    >
-      Privacy Policy
-    </Text>.
-  </Text>
-</View>
+    <View style={loginStyles.bottomInfo}>
+      <Text style={loginStyles.bottomText}>
+        By continuing, you agree to our{" "}
+        <Text style={loginStyles.bottomLink} onPress={() => router.push("/privacy-policy")}>
+          Privacy Policy
+        </Text>.
+      </Text>
+    </View>
   );
 
-  // ── DESKTOP LAYOUT (two-column) ────────────────────────────────────────────
+  // Desktop view
   if (isDesktop) {
     return (
-      <SafeAreaView
-        style={[loginStyles.container, { flexDirection: "row" }]}
-        edges={["bottom"]}
-      >
-        {/* Toast */}
-        {toast.show && (
-          <View
-            style={[
-              loginStyles.toast,
-              toast.type === "error" && { backgroundColor: "#ff4d4d" },
-              toast.type === "success" && { backgroundColor: "#4CAF50" },
-              toast.type === "info" && { backgroundColor: "#333" },
-            ]}
-          >
-            <Icon
-              name={
-                toast.type === "error"
-                  ? "close-circle"
-                  : toast.type === "success"
-                  ? "checkmark-circle"
-                  : "information-circle"
-              }
-              size={18}
-              color="#fff"
-            />
-            <Text style={loginStyles.toastText}>{toast.msg}</Text>
-          </View>
-        )}
-
-        {/* Left — Hero panel */}
+      <SafeAreaView style={[loginStyles.container, { flexDirection: "row" }]} edges={["bottom"]}>
         <View style={loginStyles.leftPanel}>{renderHero(true)}</View>
-
-        {/* Right — Form panel */}
         <View style={loginStyles.rightPanel}>
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }}
-          >
-            {/* Desktop tabs inside right panel */}
-            <View
-              style={[
-                loginStyles.tabs,
-                {
-                  marginBottom: 24,
-                  backgroundColor: "rgba(15,23,42,0.07)",
-                },
-              ]}
-            >
-              <TouchableOpacity
-                style={[
-                  loginStyles.tab,
-                  activeTab === "login" && loginStyles.activeTab,
-                ]}
-                onPress={() => setActiveTab("login")}
-              >
-                <Text
-                  style={[
-                    loginStyles.tabText,
-                    {
-                      color:
-                        activeTab === "login" ? undefined : colors.muted,
-                    },
-                    activeTab === "login" && loginStyles.activeTabText,
-                  ]}
-                >
-                  Sign In
-                </Text>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }}>
+            <View style={[loginStyles.tabs, { marginBottom: 24, backgroundColor: "rgba(15,23,42,0.07)" }]}>
+              <TouchableOpacity style={[loginStyles.tab, activeTab === "login" && loginStyles.activeTab]} onPress={() => handleTabSwitch("login")}>
+                <Text style={[loginStyles.tabText, { color: activeTab === "login" ? undefined : colors.muted }, activeTab === "login" && loginStyles.activeTabText]}>Sign In</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  loginStyles.tab,
-                  activeTab === "signup" && loginStyles.activeTab,
-                ]}
-                onPress={() => setActiveTab("signup")}
-              >
-                <Text
-                  style={[
-                    loginStyles.tabText,
-                    {
-                      color:
-                        activeTab === "signup" ? undefined : colors.muted,
-                    },
-                    activeTab === "signup" && loginStyles.activeTabText,
-                  ]}
-                >
-                  Create Account
-                </Text>
+              <TouchableOpacity style={[loginStyles.tab, activeTab === "signup" && loginStyles.activeTab]} onPress={() => handleTabSwitch("signup")}>
+                <Text style={[loginStyles.tabText, { color: activeTab === "signup" ? undefined : colors.muted }, activeTab === "signup" && loginStyles.activeTabText]}>Create Account</Text>
               </TouchableOpacity>
             </View>
-
             <AuthForms {...authFormProps} />
             {renderBottomInfo()}
           </ScrollView>
@@ -436,48 +306,13 @@ const LoginScreen = () => {
     );
   }
 
-  // ── TABLET LAYOUT (single column, centered card) ───────────────────────────
+  // Tablet view
   if (isTablet) {
     return (
       <SafeAreaView style={loginStyles.container} edges={["bottom"]}>
-        {/* Toast */}
-        {toast.show && (
-          <View
-            style={[
-              loginStyles.toast,
-              toast.type === "error" && { backgroundColor: "#ff4d4d" },
-              toast.type === "success" && { backgroundColor: "#4CAF50" },
-              toast.type === "info" && { backgroundColor: "#333" },
-            ]}
-          >
-            <Icon
-              name={
-                toast.type === "error"
-                  ? "close-circle"
-                  : toast.type === "success"
-                  ? "checkmark-circle"
-                  : "information-circle"
-              }
-              size={18}
-              color="#fff"
-            />
-            <Text style={loginStyles.toastText}>{toast.msg}</Text>
-          </View>
-        )}
-
-        <KeyboardAwareScrollView
-          style={loginStyles.scrollView}
-          contentContainerStyle={{ flexGrow: 1 }}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          enableOnAndroid={true}
-          extraScrollHeight={20}
-          extraHeight={120}
-        >
-          {/* Center content wrapper */}
+        <KeyboardAwareScrollView style={loginStyles.scrollView} contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" enableOnAndroid extraScrollHeight={20} extraHeight={120}>
           <View style={{ alignSelf: "center", width: "100%", maxWidth: 680 }}>
             {renderHero()}
-
             <AuthForms {...authFormProps} />
             {renderBottomInfo()}
           </View>
@@ -486,47 +321,12 @@ const LoginScreen = () => {
     );
   }
 
-  // ── MOBILE LAYOUT (original) ───────────────────────────────────────────────
+  // Mobile view
   return (
     <SafeAreaView style={loginStyles.container} edges={["bottom"]}>
-      {/* Toast */}
-      {toast.show && (
-        <View
-          style={[
-            loginStyles.toast,
-            toast.type === "error" && { backgroundColor: "#ff4d4d" },
-            toast.type === "success" && { backgroundColor: "#4CAF50" },
-            toast.type === "info" && { backgroundColor: "#333" },
-          ]}
-        >
-          <Icon
-            name={
-              toast.type === "error"
-                ? "close-circle"
-                : toast.type === "success"
-                ? "checkmark-circle"
-                : "information-circle"
-            }
-            size={18}
-            color="#fff"
-          />
-          <Text style={loginStyles.toastText}>{toast.msg}</Text>
-        </View>
-      )}
-
-      <KeyboardAwareScrollView
-        style={loginStyles.scrollView}
-        contentContainerStyle={{ flexGrow: 1 }}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        enableOnAndroid={true}
-        extraScrollHeight={20}
-        extraHeight={120}
-      >
+      <KeyboardAwareScrollView style={loginStyles.scrollView} contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" enableOnAndroid extraScrollHeight={20} extraHeight={120}>
         {renderHero()}
-
         <AuthForms {...authFormProps} />
-
         {renderBottomInfo()}
       </KeyboardAwareScrollView>
     </SafeAreaView>

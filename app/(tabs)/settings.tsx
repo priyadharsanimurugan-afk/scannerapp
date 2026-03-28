@@ -7,7 +7,6 @@ import {
   StatusBar,
   TextInput,
   ActivityIndicator,
-  Alert,
   useWindowDimensions,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -24,81 +23,38 @@ export default function SettingsScreen() {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 1024;
   const isTablet  = width >= 640 && width < 1024;
-  const isMobile  = width < 640;
 
   const [toast, setToast] = useState({ show: false, msg: '' });
-
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  const { profile, loading: profileLoading, editProfile, fetchProfile, error: profileError } = useProfile();
-  const { summary, loading: dashboardLoading } = useDashboard();
+  const { profile, loading: profileLoading, editProfile, fetchProfile } = useProfile();
+  const { summary } = useDashboard();
+
   const [isEditing, setIsEditing] = useState(false);
-  const [userName, setUserName]     = useState('');
+  const [userName, setUserName]       = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [email, setEmail]           = useState('');
-  const [isAdmin, setIsAdmin]       = useState(false);
+  const [email, setEmail]             = useState('');
+  const [isAdmin, setIsAdmin]         = useState(false);
+  const [roles, setRoles]             = useState<string[] | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
+  const [originalData, setOriginalData] = useState({ userName: '', phoneNumber: '' });
 
-  const [originalData, setOriginalData] = useState({
-  userName: '',
-  phoneNumber: '',
-});
-
-
+  // ── Sync profile into local state (guard against empty overwrites) ──
   useEffect(() => {
     if (profile) {
-      setUserName(profile.userName || '');
-      setPhoneNumber(profile.phoneNumber || '');
-      setEmail(profile.email || '');
+      if (profile.userName)    setUserName(profile.userName);
+      if (profile.phoneNumber) setPhoneNumber(profile.phoneNumber);
+      if (profile.email)       setEmail(profile.email);
     }
   }, [profile]);
 
   useEffect(() => {
     const checkRole = async () => {
-      const roles = await getRoles();
-      if (roles?.includes('Admin')) setIsAdmin(true);
+      const r = await getRoles();
+      if (r?.includes('Admin')) setIsAdmin(true);
     };
     checkRole();
   }, []);
-
-  const showToast = (msg: string) => {
-    setToast({ show: true, msg });
-    setTimeout(() => setToast({ show: false, msg: '' }), 2500);
-  };
-
- const handleEditPress = () => {
-  if (!isEditing) {
-    setOriginalData({
-      userName,
-      phoneNumber,
-    });
-  }
-  setIsEditing(prev => !prev);
-};
-
-const handleCancel = () => {
-  setUserName(originalData.userName);
-  setPhoneNumber(originalData.phoneNumber);
-  setIsEditing(false);
-};
-
-
-  const handleSave = async () => {
-    try {
-      await editProfile(userName, phoneNumber);
-      showToast('Profile saved successfully!');
-      setIsEditing(false);
-      fetchProfile();
-    } catch {
-      showToast('Failed to save profile');
-    }
-  };
-
-const handleLogout = () => {
-  setShowLogoutModal(true);
-};
-
-  const [roles, setRoles] = useState<string[] | null>(null);
-
 
   useEffect(() => {
     const loadRoles = async () => {
@@ -107,6 +63,13 @@ const handleLogout = () => {
     };
     loadRoles();
   }, []);
+
+  // ── Helpers ──────────────────────────────────────────────────────────
+  const showToast = (msg: string) => {
+    setToast({ show: true, msg });
+    setTimeout(() => setToast({ show: false, msg: '' }), 2500);
+  };
+
   const getInitials = () => {
     if (!userName) return 'U';
     return userName
@@ -117,14 +80,74 @@ const handleLogout = () => {
       .substring(0, 2);
   };
 
+  const extractErrorsWithField = (error: any): Record<string, string[]> => {
+    const data = error?.response?.data;
+    const errorsMap: Record<string, string[]> = {};
+
+    if (!data) {
+      errorsMap['general'] = [error?.message || 'Something went wrong'];
+      return errorsMap;
+    }
+
+    if (data.errors) {
+      for (const [key, value] of Object.entries(data.errors)) {
+        // Normalize PascalCase → camelCase (e.g. "PhoneNumber" → "phoneNumber")
+        const normalizedKey = key.charAt(0).toLowerCase() + key.slice(1);
+        if (Array.isArray(value)) {
+          errorsMap[normalizedKey] = value as string[];
+        } else if (typeof value === 'string') {
+          errorsMap[normalizedKey] = [value];
+        }
+      }
+    }
+
+    return errorsMap;
+  };
+
+  // ── Handlers ─────────────────────────────────────────────────────────
+  const handleEditPress = () => {
+    if (!isEditing) {
+      setOriginalData({ userName, phoneNumber });
+      setFieldErrors({});
+    }
+    setIsEditing(prev => !prev);
+  };
+
+  const handleCancel = () => {
+    setUserName(originalData.userName);
+    setPhoneNumber(originalData.phoneNumber);
+    setIsEditing(false);
+    setFieldErrors({});
+  };
+
+  const handleSave = async () => {
+    try {
+      setFieldErrors({});
+      await editProfile(userName, phoneNumber);
+      showToast('Profile saved successfully!');
+      setIsEditing(false);
+      fetchProfile();
+    } catch (error: any) {
+      const errors = extractErrorsWithField(error);
+      setFieldErrors(errors);
+      if (errors.general) {
+        showToast(errors.general[0]);
+      } else {
+        showToast('Please fix the validation errors below');
+      }
+    }
+  };
+
+  const handleLogout = () => setShowLogoutModal(true);
+
+  // ── Derived values ────────────────────────────────────────────────────
   const isPremium = profile?.accountType === 'Premium';
 
   const usagePercent =
     profile?.remainingScans && summary?.totalScansUsed
       ? Math.round(
           (summary.totalScansUsed /
-            (summary.totalScansUsed + profile.remainingScans)) *
-            100,
+            (summary.totalScansUsed + profile.remainingScans)) * 100,
         )
       : 0;
 
@@ -132,13 +155,61 @@ const handleLogout = () => {
     profile?.remainingScans && summary?.totalScansUsed
       ? `${Math.min(
           (summary.totalScansUsed /
-            (summary.totalScansUsed + profile.remainingScans)) *
-            100,
+            (summary.totalScansUsed + profile.remainingScans)) * 100,
           100,
         )}%`
       : '0%';
 
-  // ─── Content (shared across all breakpoints) ─────────────────────────────────
+  // ── Form fields (reused for both desktop and mobile) ─────────────────
+  const formFields = (
+    <>
+      {/* Username */}
+      <View style={settingsStyles.formGroup}>
+        <Text style={settingsStyles.formLabel}>Username</Text>
+        <TextInput
+          style={[
+            settingsStyles.formInput,
+            { color: colors.muted },
+            fieldErrors.userName && settingsStyles.inputError,
+          ]}
+          value={userName}
+          onChangeText={setUserName}
+          placeholder="Enter username"
+          placeholderTextColor={colors.muted}
+          editable={false}
+        />
+        {fieldErrors.userName && (
+          <Text style={settingsStyles.errorText}>{fieldErrors.userName[0]}</Text>
+        )}
+      </View>
+
+      {/* Phone Number */}
+      <View style={settingsStyles.formGroup}>
+        <Text style={settingsStyles.formLabel}>Phone Number</Text>
+       <TextInput
+  style={[
+    settingsStyles.formInput,
+    fieldErrors.phoneNumber && settingsStyles.inputError,
+  ]}
+  value={phoneNumber}
+  onChangeText={setPhoneNumber}
+  placeholder="Enter phone number"
+  placeholderTextColor={colors.muted}
+  keyboardType="phone-pad"
+  editable={isEditing}
+  maxLength={10}   // ✅ limit to 10 digits
+/>
+{fieldErrors.phoneNumber && (
+  <Text style={settingsStyles.errorText}>
+    {fieldErrors.phoneNumber[0]}
+  </Text>
+)}
+
+      </View>
+    </>
+  );
+
+  // ── Content ───────────────────────────────────────────────────────────
   const content = (
     <View
       style={[
@@ -163,7 +234,6 @@ const handleLogout = () => {
           settingsStyles.scrollContent,
           isDesktop && settingsStyles.scrollContentDesktop,
           isTablet  && settingsStyles.scrollContentTablet,
-          
         ]}
       >
         {/* ── Profile Hero ── */}
@@ -178,7 +248,6 @@ const handleLogout = () => {
                 size={14}
                 color={colors.amber}
               />
-              
             </TouchableOpacity>
           </View>
 
@@ -210,16 +279,6 @@ const handleLogout = () => {
             </View>
           </View>
         </View>
-
-        {/* ── Profile Error ── */}
-        {profileError && (
-          <View style={{ padding: 10 }}>
-            <Text style={{ color: 'red', textAlign: 'center' }}>{profileError}</Text>
-            <TouchableOpacity onPress={fetchProfile} style={{ marginTop: 5 }}>
-              <Text style={{ color: colors.amber, textAlign: 'center' }}>Retry</Text>
-            </TouchableOpacity>
-          </View>
-        )}
 
         {/* ── Mini Stats ── */}
         <View style={settingsStyles.miniStats}>
@@ -262,115 +321,83 @@ const handleLogout = () => {
         {/* ── Profile Form ── */}
         <Text style={settingsStyles.sectionLabel}>Profile Information</Text>
         <View style={[settingsStyles.formCard, isDesktop && settingsStyles.formCardDesktop]}>
-          <View style={settingsStyles.formInner}>
-            {/* Desktop: name + phone side-by-side */}
-            {isDesktop ? (
-              <View style={settingsStyles.formRow}>
-                <View style={settingsStyles.formGroup}>
-                  <Text style={settingsStyles.formLabel}>Username</Text>
-                  <TextInput
-                    style={settingsStyles.formInput}
-                    value={userName}
-                    onChangeText={setUserName}
-                    placeholder="Enter username"
-                    placeholderTextColor={colors.muted}
-                    editable={isEditing}
-                  />
-                </View>
-                <View style={settingsStyles.formGroup}>
-                  <Text style={settingsStyles.formLabel}>Phone Number</Text>
-                  <TextInput
-                    style={settingsStyles.formInput}
-                    value={phoneNumber}
-                    onChangeText={setPhoneNumber}
-                    placeholder="Enter phone number"
-                    placeholderTextColor={colors.muted}
-                    keyboardType="phone-pad"
-                    editable={isEditing}
-                  />
-                </View>
-              </View>
-            ) : (
-              <>
-                <View style={settingsStyles.formGroup}>
-                  <Text style={settingsStyles.formLabel}>Username</Text>
-                  <TextInput
-                    style={settingsStyles.formInput}
-                    value={userName}
-                    onChangeText={setUserName}
-                    placeholder="Enter username"
-                    placeholderTextColor={colors.muted}
-                    editable={isEditing}
-                  />
-                </View>
-                <View style={settingsStyles.formGroup}>
-                  <Text style={settingsStyles.formLabel}>Phone Number</Text>
-                  <TextInput
-                    style={settingsStyles.formInput}
-                    value={phoneNumber}
-                    onChangeText={setPhoneNumber}
-                    placeholder="Enter phone number"
-                    placeholderTextColor={colors.muted}
-                    keyboardType="phone-pad"
-                    editable={isEditing}
-                  />
-                </View>
-              </>
-            )}
 
-            <View style={settingsStyles.formGroup}>
-              <Text style={settingsStyles.formLabel}>Email Address</Text>
-              <TextInput
-                style={[settingsStyles.formInput, { color: colors.muted }]}
-                value={email}
-                editable={false}
-              />
+          {/* Form-level loader — only shown on initial fetch, not while editing */}
+          {profileLoading && !isEditing ? (
+            <View style={{ paddingVertical: 32, alignItems: 'center', justifyContent: 'center' }}>
+              <ActivityIndicator size="small" color={colors.amber} />
+              <Text style={{ color: colors.muted, marginTop: 8, fontSize: 13 }}>
+                Loading profile...
+              </Text>
             </View>
+          ) : (
+            <View style={settingsStyles.formInner}>
 
-          {isEditing && (
-  <View style={{ flexDirection: 'row', gap: 10 }}>
-    
-    {/* Cancel */}
-    <TouchableOpacity
-      style={{
-        flex: 1,
-        paddingVertical: 14,
-        borderRadius: 13,
-        backgroundColor: '#E5E7EB',
-        alignItems: 'center',
-      }}
-      onPress={handleCancel}
-    >
-      <Text style={{ fontWeight: '700', color: '#374151' }}>
-        Cancel
-      </Text>
-    </TouchableOpacity>
+              {/* Desktop: username + phone side-by-side */}
+              {isDesktop ? (
+                <View style={settingsStyles.formRow}>
+                  {formFields}
+                </View>
+              ) : (
+                formFields
+              )}
 
-    {/* Save */}
-    <TouchableOpacity
-      style={[
-        settingsStyles.saveButton,
-        { flex: 1 },
-        profileLoading && settingsStyles.saveButtonDisabled,
-      ]}
-      onPress={handleSave}
-      disabled={profileLoading}
-    >
-      {profileLoading ? (
-        <ActivityIndicator size="small" color={colors.navy} />
-      ) : (
-        <>
-          <Icon name="checkmark" size={14} color={colors.navy} />
-          <Text style={settingsStyles.saveButtonText}>
-            Save Changes
-          </Text>
-        </>
-      )}
-    </TouchableOpacity>
-  </View>
-)}
+              {/* Email — always read-only */}
+              <View style={settingsStyles.formGroup}>
+                <Text style={settingsStyles.formLabel}>Email Address</Text>
+                <TextInput
+                  style={[
+                    settingsStyles.formInput,
+                    { color: colors.muted },
+                    fieldErrors.email && settingsStyles.inputError,
+                  ]}
+                  value={email}
+                  editable={false}
+                />
+                {fieldErrors.email && (
+                  <Text style={settingsStyles.errorText}>{fieldErrors.email[0]}</Text>
+                )}
+              </View>
 
-          </View>
+              {/* Cancel / Save buttons */}
+              {isEditing && (
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <TouchableOpacity
+                    style={{
+                      flex: 1,
+                      paddingVertical: 14,
+                      borderRadius: 13,
+                      backgroundColor: '#E5E7EB',
+                      alignItems: 'center',
+                    }}
+                    onPress={handleCancel}
+                  >
+                    <Text style={{ fontWeight: '700', color: '#374151' }}>Cancel</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      settingsStyles.saveButton,
+                      { flex: 1 },
+                      profileLoading && settingsStyles.saveButtonDisabled,
+                    ]}
+                    onPress={handleSave}
+                    disabled={profileLoading}
+                  >
+                    {profileLoading ? (
+                      <ActivityIndicator size="small" color={colors.navy} />
+                    ) : (
+                      <>
+                        <Icon name="checkmark" size={14} color={colors.navy} />
+                        <Text style={settingsStyles.saveButtonText}>Save Changes</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              )}
+
+            </View>
+          )}
         </View>
 
         {/* ── Subscription ── */}
@@ -438,56 +465,47 @@ const handleLogout = () => {
             <Icon name="chevron-forward" size={12} style={settingsStyles.chevron} />
           </TouchableOpacity>
         </View>
-{showLogoutModal && (
-  <View style={settingsStyles.overlay}>
-    <View style={settingsStyles.modalCard}>
-      
-      <Text style={settingsStyles.modalTitle}>Confirm Logout</Text>
 
-      <Text style={settingsStyles.modalText}>
-        Are you sure you want to log out?
-      </Text>
+        {/* ── Logout Modal ── */}
+        {showLogoutModal && (
+          <View style={settingsStyles.overlay}>
+            <View style={settingsStyles.modalCard}>
+              <Text style={settingsStyles.modalTitle}>Confirm Logout</Text>
+              <Text style={settingsStyles.modalText}>
+                Are you sure you want to log out?
+              </Text>
+              <View style={settingsStyles.modalActions}>
+                <TouchableOpacity
+                  style={settingsStyles.cancelBtn}
+                  onPress={() => setShowLogoutModal(false)}
+                >
+                  <Text style={settingsStyles.cancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={settingsStyles.logoutBtn}
+                  onPress={async () => {
+                    setShowLogoutModal(false);
+                    await deleteTokens();
+                    router.replace('/login');
+                  }}
+                >
+                  <Text style={settingsStyles.logoutText}>Logout</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        )}
 
-      <View style={settingsStyles.modalActions}>
-        
-        {/* Cancel */}
-        <TouchableOpacity
-          style={settingsStyles.cancelBtn}
-          onPress={() => setShowLogoutModal(false)}
-        >
-          <Text style={settingsStyles.cancelText}>Cancel</Text>
-        </TouchableOpacity>
-
-        {/* Logout */}
-        <TouchableOpacity
-          style={settingsStyles.logoutBtn}
-          onPress={async () => {
-            setShowLogoutModal(false);
-            await deleteTokens();
-            router.replace('/login');
-          }}
-        >
-          <Text style={settingsStyles.logoutText}>Logout</Text>
-        </TouchableOpacity>
-
-      </View>
-    </View>
-  </View>
-)}
-
-      
       </ScrollView>
     </View>
   );
 
-
-  // ─── Wrap with sidebar on desktop ────────────────────────────────────────────
   return (
     <SidebarLayout
       isAdmin={isAdmin}
       userName={userName}
       userInitials={getInitials()}
-          userRole={roles?.[0]}
+      userRole={roles?.[0]}
     >
       {content}
     </SidebarLayout>
