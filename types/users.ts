@@ -7,4 +7,12 @@ export interface AllUser {
   
 }
 
-   
+   export interface PremiumRequest {
+  id: number;
+  message: string;
+  paymentReference: string;
+  contactNumber: string;
+  status: string;
+  adminRemark?: string;
+  createdAt: string;
+}

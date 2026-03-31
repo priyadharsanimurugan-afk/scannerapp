@@ -6,17 +6,15 @@ import { Entypo } from '@expo/vector-icons';
 import { colors } from '@/constants/colors';
 import { useDeviceType } from '@/hooks/useDeviceType';
 
-
-
 function TabIcon({ name, label, focused, isScan = false }: { name: any; label: string; focused: boolean; isScan?: boolean }) {
-  const { isDesktop } = useDeviceType();
+  const { isDesktop, isTablet } = useDeviceType();
 
-  // Don't show tab icons on desktop
+  // Don't show tab icons on desktop (where sidebar exists)
   if (isDesktop) {
     return null;
   }
 
-  // Rendering for all other tabs (mobile only)
+  // Show tab icons on both mobile and tablet (since they don't have sidebar)
   return (
     <View style={[tabStyles.tabItem, focused && tabStyles.tabItemActive]}>
       <Entypo 
@@ -62,7 +60,7 @@ const tabStyles = StyleSheet.create({
     color: colors.amberDark,
     fontWeight: '700',
   },
-  // Mobile tab bar styles
+  // Mobile and tablet tab bar styles
   tabBarMobile: {
     backgroundColor: colors.white,
     borderTopWidth: 1,

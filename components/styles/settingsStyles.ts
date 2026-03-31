@@ -10,10 +10,11 @@ const isDesktop = width >= 1024;
 const isLargeScreen = isTablet || isDesktop;
 export const settingsStyles = StyleSheet.create({
   // ─── Root container ────────────────────────────────────────────────────────
-  container: {
-    flex:            1,
-    backgroundColor: colors.navy,
-  },
+ container: {
+  flex: 1,
+  backgroundColor: colors.phoneBg, // ✅ CHANGE THIS
+}
+,
   // On desktop the container sits inside the sidebar layout's white main area
   containerDesktop: {
     backgroundColor: colors.phoneBg,
@@ -45,7 +46,7 @@ errorText: {
   // Tablet: constrain width and centre
   scrollContentTablet: {
     width:     '100%',
-    maxWidth:  980,
+    maxWidth:  '100%',
     alignSelf: 'center',
   },
 
@@ -583,5 +584,22 @@ logoutText: {
   color: '#fff',
   fontWeight: '700',
 },
+// In your settingsStyles file, add these new styles:
 
+twoColumnSection: {
+  flexDirection: 'row',
+  gap: 16,
+  marginBottom: 24,
+  width: isDesktop ?'100%' : 'auto',
+  maxWidth: isDesktop ? 1200 : '100%', // ✅ SAME as card
+  alignSelf: isDesktop ? 'center' : 'auto', // ✅ center like card
+},
+twoColumnSectionMobile: {
+
+  flexDirection: 'column',
+  gap: -20,
+},
+twoColumnItem: {
+  flex: 1,
+},
 });

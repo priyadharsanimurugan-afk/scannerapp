@@ -15,6 +15,7 @@ const api = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+    transport: undefined, // sometimes helps in node
 });
 
 let isRefreshing = false;
@@ -52,13 +53,18 @@ api.interceptors.response.use(
 
     console.log("Interceptor hit:", error?.response?.status);
 
-    // ❌ If no response → network error
+    // ❌ Network error
     if (!error.response) {
       return Promise.reject(error);
     }
 
-    // ✅ If 401 and already retried → logout directly
-    if (error.response.status === 401 || originalRequest._retry) {
+    // ✅ Only handle 401
+    if (error.response.status !== 401) {
+      return Promise.reject(error);
+    }
+
+    // ❌ If already retried → logout
+    if (originalRequest._retry) {
       console.log("Already retried → force logout");
 
       await deleteTokens();
@@ -67,71 +73,62 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    // ✅ Handle first 401
-    if (error.response.status === 401 && !originalRequest._retry) {
-      // 🔁 If refresh already happening → queue request
-      if (isRefreshing) {
-        return new Promise((resolve, reject) => {
-          failedQueue.push({ resolve, reject });
-        }).then((token) => {
-          originalRequest.headers.Authorization = `Bearer ${token}`;
-          return api(originalRequest);
-        });
-      }
-
-      originalRequest._retry = true;
-      isRefreshing = true;
-
-      try {
-        const refreshToken = await getRefreshToken();
-
-        // ❌ No refresh token → logout
-        if (!refreshToken) {
-          throw new Error("No refresh token");
-        }
-
-        const res = await refreshTokenUser({
-          refreshToken,
-        });
-
-        console.log("Refresh API response:", res);
-
-        // ❌ Invalid response (very important fix)
-        if (!res?.accessToken) {
-          throw new Error("Invalid refresh response");
-        }
-
-        const newAccessToken = res.accessToken;
-        const newRefreshToken = res.refreshToken;
-        const roles = res.roles;
-
-        // ✅ Save new tokens
-        await saveTokens(newAccessToken, newRefreshToken, roles);
-
-        // ✅ Resolve queued requests
-        processQueue(null, newAccessToken);
-
-        // ✅ Retry original request
-        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
-
+    // 🔁 If refresh already happening → queue
+    if (isRefreshing) {
+      return new Promise((resolve, reject) => {
+        failedQueue.push({ resolve, reject });
+      }).then((token) => {
+        originalRequest.headers.Authorization = `Bearer ${token}`;
         return api(originalRequest);
-      } catch (err: any) {
-        console.log("Refresh failed:", err?.response?.status);
-
-        processQueue(err, null);
-
-        // ✅ FORCE LOGOUT
-        await deleteTokens();
-        await triggerLogout();
-
-        return Promise.reject(err);
-      } finally {
-        isRefreshing = false;
-      }
+      });
     }
 
-    return Promise.reject(error);
+    originalRequest._retry = true;
+    isRefreshing = true;
+
+    try {
+      const refreshToken = await getRefreshToken();
+
+      if (!refreshToken) {
+        throw new Error("No refresh token");
+      }
+
+      const res = await refreshTokenUser({ refreshToken });
+
+      console.log("Refresh API response:", res);
+
+      if (!res?.accessToken) {
+        throw new Error("Invalid refresh response");
+      }
+
+      const newAccessToken = res.accessToken;
+      const newRefreshToken = res.refreshToken;
+      const roles = res.roles;
+
+      await saveTokens(newAccessToken, newRefreshToken, roles);
+
+      // ✅ Process queued requests
+      processQueue(null, newAccessToken);
+
+      // ✅ Retry original request
+      originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+      return api(originalRequest);
+
+    } catch (err: any) {
+      console.log("Refresh failed:", err?.response?.status);
+
+      processQueue(err, null);
+
+      // ❌ ONLY HERE logout happens
+      await deleteTokens();
+      await triggerLogout();
+
+      return Promise.reject(err);
+    } finally {
+      isRefreshing = false;
+    }
   }
 );
+
 
 export default api;

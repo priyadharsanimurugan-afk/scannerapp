@@ -46,11 +46,11 @@ const getAvatarColor = (name: string) => {
 
 // ─── Responsive Utilities ────────────────────────────────────────────────────
 const getResponsiveConfig = (width: number) => {
-  if (width < 640) return { columns: 1, gap: 12, paddingHorizontal: 16, cardWidth: '100%' };
-  if (width < 768) return { columns: 2, gap: 12, paddingHorizontal: 16, cardWidth: 'calc(50% - 6px)' };
-  if (width < 1024) return { columns: 2, gap: 14, paddingHorizontal: 24, cardWidth: 'calc(50% - 7px)' };
-  if (width < 1280) return { columns: 3, gap: 14, paddingHorizontal: 24, cardWidth: 'calc(33.333% - 10px)' };
-  return { columns: 3, gap: 14, paddingHorizontal: 32, cardWidth: 'calc(33.333% - 10px)' };
+  if (width < 640) return { columns: 1, gap: 12, paddingHorizontal: 16, cardWidth: '100%' as any };
+  if (width < 768) return { columns: 2, gap: 12, paddingHorizontal: 16, cardWidth: 'calc(50% - 6px)' as any };
+  if (width < 1024) return { columns: 2, gap: 14, paddingHorizontal: 24, cardWidth: 'calc(50% - 7px)' as any };
+  if (width < 1280) return { columns: 3, gap: 14, paddingHorizontal: 24, cardWidth: 'calc(33.333% - 10px)' as any };
+  return { columns: 3, gap: 14, paddingHorizontal: 32, cardWidth: 'calc(33.333% - 10px)' as any };
 };
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
@@ -221,9 +221,12 @@ const ImageViewer = ({ visible, images, currentIndex, label, onClose, onNext, on
   const hasPrev = currentIndex > 0 && images[currentIndex - 1]?.uri;
   const hasNext = currentIndex < images.length - 1 && images[currentIndex + 1]?.uri;
 
+  // Cast View to any to support web-only mouse event props
+  const AnyView = View as any;
+
   return (
     <Modal visible animationType="fade" transparent onRequestClose={onClose}>
-      <View
+      <AnyView
         style={{ flex: 1, backgroundColor: 'rgba(5,5,10,0.97)', justifyContent: 'center', alignItems: 'center' }}
         onMouseMove={Platform.OS === 'web' ? onMouseMove : undefined}
         onMouseUp={Platform.OS === 'web' ? onMouseUp : undefined}
@@ -278,12 +281,15 @@ const ImageViewer = ({ visible, images, currentIndex, label, onClose, onNext, on
           </TouchableOpacity>
         )}
 
-        <View
+        <AnyView
           onMouseDown={Platform.OS === 'web' ? onMouseDown : undefined}
           onWheel={Platform.OS === 'web' ? onWheel : undefined}
           style={{
             transform: [{ translateX: offset.x }, { translateY: offset.y }, { scale }, { rotate: `${rotate}deg` as any }],
-            ...(Platform.OS === 'web' && { cursor: dragRef.current.active ? 'grabbing' : 'grab', userSelect: 'none' }),
+            ...(Platform.OS === 'web' && {
+              cursor: dragRef.current.active ? 'grabbing' : 'grab',
+              userSelect: 'none',
+            }),
           }}
         >
           {uri ? (
@@ -294,14 +300,14 @@ const ImageViewer = ({ visible, images, currentIndex, label, onClose, onNext, on
               <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: isMobile ? 12 : 14 }}>No image available</Text>
             </View>
           )}
-        </View>
+        </AnyView>
 
         {!isMobile && (
           <Text style={{ position: 'absolute' as any, bottom: 18, color: 'rgba(255,255,255,0.2)', fontSize: 11 }}>
             Scroll to zoom · Drag to pan · Toolbar to rotate · Use arrows to navigate
           </Text>
         )}
-      </View>
+      </AnyView>
     </Modal>
   );
 };
@@ -316,7 +322,7 @@ const EditField = React.memo(({ label, value, onChange, keyboardType, error }: {
     <TextInput
       style={[
         contactsStyles.editFieldInput,
-        Platform.OS === 'web' && { outlineStyle: 'none' },
+        Platform.OS === 'web' && ({ outlineStyle: 'none' } as any),
         error ? {
           borderWidth: 1.5,
           borderColor: colors.error,
@@ -435,6 +441,13 @@ const EditDialog = ({ visible, contact, onClose, onSave, saving }: {
     </View>
   );
 
+  // Email validation helper function
+  const validateEmailFormat = (email: string) => {
+    const emailRegex = /^[^\s@]+@([^\s@]+\.)+[^\s@]+$/;
+    if (!email) return undefined;
+    return emailRegex.test(email) ? undefined : 'Invalid email format';
+  };
+
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: isMobile ? 16 : 0 }}>
@@ -443,7 +456,7 @@ const EditDialog = ({ visible, contact, onClose, onSave, saving }: {
           borderRadius: 20,
           width: isMobile ? '100%' : isTablet ? 540 : 620,
           maxWidth: '100%',
-          maxHeight: '88vh',
+          maxHeight: '88%' as any,
           overflow: 'hidden',
           shadowColor: '#000',
           shadowOpacity: 0.22,
@@ -495,21 +508,60 @@ const EditDialog = ({ visible, contact, onClose, onSave, saving }: {
             <Text style={contactsStyles.editSectionHeading}>Phone Numbers</Text>
             <Row2>
               <View style={{ flex: 1 }}>
-                <EditField label="Phone 1" value={form.phoneNumber1} onChange={f('phoneNumber1')} keyboardType="phone-pad" error={fieldErrors.phoneNumber1} />
+                <EditField
+                  label="Phone 1"
+                  value={form.phoneNumber1}
+                  onChange={(text) => {
+                    const cleaned = text.replace(/[^0-9]/g, '').slice(0, 12);
+                    f('phoneNumber1')(cleaned);
+                  }}
+                  keyboardType="phone-pad"
+                  error={fieldErrors.phoneNumber1}
+                />
               </View>
               <View style={{ flex: 1 }}>
-                <EditField label="Phone 2" value={form.phoneNumber2} onChange={f('phoneNumber2')} keyboardType="phone-pad" error={fieldErrors.phoneNumber2} />
+                <EditField
+                  label="Phone 2"
+                  value={form.phoneNumber2}
+                  onChange={(text) => {
+                    const cleaned = text.replace(/[^0-9]/g, '').slice(0, 12);
+                    f('phoneNumber2')(cleaned);
+                  }}
+                  keyboardType="phone-pad"
+                  error={fieldErrors.phoneNumber2}
+                />
               </View>
             </Row2>
-            <EditField label="Phone 3" value={form.phoneNumber3} onChange={f('phoneNumber3')} keyboardType="phone-pad" error={fieldErrors.phoneNumber3} />
+            <EditField
+              label="Phone 3"
+              value={form.phoneNumber3}
+              onChange={(text) => {
+                const cleaned = text.replace(/[^0-9]/g, '').slice(0, 12);
+                f('phoneNumber3')(cleaned);
+              }}
+              keyboardType="phone-pad"
+              error={fieldErrors.phoneNumber3}
+            />
 
             <Text style={contactsStyles.editSectionHeading}>Email</Text>
             <Row2>
               <View style={{ flex: 1 }}>
-                <EditField label="Email 1" value={form.email1} onChange={f('email1')} keyboardType="email-address" error={fieldErrors.email1} />
+                <EditField
+                  label="Email 1"
+                  value={form.email1}
+                  onChange={f('email1')}
+                  keyboardType="email-address"
+                  error={fieldErrors.email1 || validateEmailFormat(form.email1)}
+                />
               </View>
               <View style={{ flex: 1 }}>
-                <EditField label="Email 2" value={form.email2} onChange={f('email2')} keyboardType="email-address" error={fieldErrors.email2} />
+                <EditField
+                  label="Email 2"
+                  value={form.email2}
+                  onChange={f('email2')}
+                  keyboardType="email-address"
+                  error={fieldErrors.email2 || validateEmailFormat(form.email2)}
+                />
               </View>
             </Row2>
 
@@ -684,7 +736,11 @@ const DetailPanel = ({ visible, contact, loading: loadingDetail, onClose, onEdit
             {cardImages.map((img, idx) => (
               <TouchableOpacity
                 key={idx}
-                style={[contactsStyles.detailCardBox, { width: isMobile ? '48%' : 'auto', cursor: Platform.OS === 'web' ? 'zoom-in' : undefined }]}
+                style={[
+                  contactsStyles.detailCardBox,
+                  { width: isMobile ? '48%' : 'auto' } as any,
+                  Platform.OS === 'web' && ({ cursor: 'zoom-in' } as any),
+                ]}
                 onPress={() => setViewingImage({ images: cardImages, currentIndex: idx })}
                 activeOpacity={0.85}
               >
@@ -756,11 +812,11 @@ const DetailPanel = ({ visible, contact, loading: loadingDetail, onClose, onEdit
           ) : null}
           <Section title="Meta">
             <InfoRow icon="calendar-outline"     label="Added On"   value={new Date(contact.createdAtUtc).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} />
-            <InfoRow icon="finger-print-outline" label="Contact ID" value={String(contact.id)} />
+            {/* <InfoRow icon="finger-print-outline" label="Contact ID" value={String(contact.id)} /> */}
           </Section>
 
           <TouchableOpacity
-            style={[contactsStyles.detailEditBtn, { cursor: Platform.OS === 'web' ? 'pointer' : undefined, marginBottom: isMobile ? 20 : 0 }]}
+            style={[contactsStyles.detailEditBtn, Platform.OS === 'web' && ({ cursor: 'pointer' } as any), { marginBottom: isMobile ? 20 : 0 }]}
             onPress={() => onEdit(contact)}
           >
             <Icon name="create-outline" size={16} color={colors.navy} />
@@ -795,9 +851,9 @@ const ContactCard = ({ contact, onPress, onDeleteRequest, selected }: {
     <TouchableOpacity
       style={[
         contactsStyles.contactCard,
-        Platform.OS === 'web' && { cursor: 'pointer' },
+        Platform.OS === 'web' && ({ cursor: 'pointer' } as any),
         selected && { borderWidth: 2, borderColor: colors.amber, backgroundColor: 'rgba(245,159,10,0.03)' },
-        isMobile && { flexDirection: 'column', alignItems: 'center', textAlign: 'center' as any },
+        isMobile && { flexDirection: 'column', alignItems: 'center' },
       ]}
       activeOpacity={0.78}
       onPress={() => onPress(contact)}
@@ -827,7 +883,7 @@ const ContactCard = ({ contact, onPress, onDeleteRequest, selected }: {
       <View style={[contactsStyles.contactRight, isMobile && { flexDirection: 'row', justifyContent: 'center', gap: 12, marginTop: 12, width: '100%' }]}>
         <Text style={contactsStyles.contactDate}>{formatDate(contact.createdAtUtc)}</Text>
         <TouchableOpacity
-          style={[contactsStyles.contactMore, Platform.OS === 'web' && { cursor: 'pointer' }]}
+          style={[contactsStyles.contactMore, Platform.OS === 'web' && ({ cursor: 'pointer' } as any)]}
           onPress={(e) => { e.stopPropagation?.(); onDeleteRequest(contact.id, personName); }}
         >
           <Icon name="trash-outline" size={12} color={colors.error} />
@@ -855,10 +911,15 @@ const SearchInput = React.memo(({ value, onChange }: { value: string; onChange: 
         style={{ position: 'absolute', left: isMobile ? 12 : 14, top: isMobile ? 9 : 11, zIndex: 1 }} />
       <TextInput
         ref={inputRef}
-        style={[contactsStyles.searchInput, {
-          paddingLeft: isMobile ? 38 : 44, paddingVertical: isMobile ? 8 : 10, fontSize: isMobile ? 13 : 14,
-          ...(Platform.OS === 'web' && { outlineStyle: 'none' }),
-        }]}
+        style={[
+          contactsStyles.searchInput,
+          {
+            paddingLeft: isMobile ? 38 : 44,
+            paddingVertical: isMobile ? 8 : 10,
+            fontSize: isMobile ? 13 : 14,
+          },
+          Platform.OS === 'web' && ({ outlineStyle: 'none' } as any),
+        ]}
         placeholder="Search name, company, email…"
         placeholderTextColor={colors.inputPlaceholder}
         value={value}

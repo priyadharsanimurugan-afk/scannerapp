@@ -1,4 +1,4 @@
-import { AllUser } from "@/types/users";
+import { AllUser, PremiumRequest } from "@/types/users";
 import api from "./api";
 
 // Get all users
@@ -16,5 +16,39 @@ export const upgradeUser = async (userId: string) => {
 // Downgrade user to Free
 export const downgradeUser = async (userId: string) => {
   const res = await api.post(`/admin/downgrade/${userId}`);
+  return res.data;
+};
+/* =========================
+   GET: All Premium Requests
+========================= */
+export const getAllPremiumRequests = async (): Promise<PremiumRequest[]> => {
+  const res = await api.get("/admin/premium-requests");
+  return res.data;
+};
+
+/* =========================
+   GET: Single Request Detail
+========================= */
+export const getPremiumRequestById = async (
+  id: number
+): Promise<PremiumRequest> => {
+  const res = await api.get(`/admin/premium-requests/${id}`);
+  return res.data;
+};
+
+/* =========================
+   POST: Review Request (Approve / Reject)
+========================= */
+export const reviewPremiumRequest = async (
+  id: number,
+  payload: {
+    approve: boolean;
+    adminRemark: string;
+  }
+) => {
+  const res = await api.post(
+    `/admin/premium-requests/review/${id}`,
+    payload
+  );
   return res.data;
 };

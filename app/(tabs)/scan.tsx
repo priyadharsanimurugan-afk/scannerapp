@@ -205,7 +205,7 @@ const sendWhatsApp = async (card: ExtendedScannedCard, fields: FieldItem[]) => {
 
 // ─── FIELD META ───────────────────────────────────────
 const FTC: Record<string, string> = { name: colors.amberDark, designation: colors.lead, company: colors.partner, subcompany: '#7c3aed', phone: colors.success, email: colors.startup, website: colors.enterprise, address: '#64748b', service: colors.vendor, pincode: colors.muted, other: '#888', gst: '#0891b2', partnership: '#16a34a', qrdetail: '#7c3aed' };
-const FTI: Record<string, keyof typeof Ionicons.glyphMap> = { name: 'person-outline', designation: 'briefcase-outline', company: 'business-outline', subcompany: 'git-branch-outline', phone: 'call-outline', email: 'mail-outline', website: 'globe-outline', address: 'map-outline', service: 'construct-outline', pincode: 'location-outline', other: 'document-text-outline', gst: 'receipt-outline', partnership: 'handshake-outline', qrdetail: 'qr-code-outline' };
+const FTI: Record<string, keyof typeof Ionicons.glyphMap> = { name: 'person-outline', designation: 'briefcase-outline', company: 'business-outline', subcompany: 'git-branch-outline', phone: 'call-outline', email: 'mail-outline', website: 'globe-outline', address: 'map-outline', service: 'construct-outline', pincode: 'location-outline', other: 'document-text-outline', gst: 'receipt-outline', partnership: 'people-circle-sharp', qrdetail: 'qr-code-outline' };
 const ALL_TYPES = ['name', 'designation', 'company', 'subcompany', 'phone', 'email', 'website', 'address', 'service', 'pincode', 'gst', 'partnership', 'qrdetail', 'other'];
 const fLabel = (t: string) => t === 'subcompany' ? 'Sub Company' : t === 'qrdetail' ? 'QR Detail' : t === 'gst' ? 'GST Number' : t.charAt(0).toUpperCase() + t.slice(1);
 
@@ -645,7 +645,11 @@ export default function ScanScreen() {
   const saveEdit = useCallback(async (cardId: string) => {
     const card = (cards as ExtendedScannedCard[]).find(c => c.id === cardId); if (!card) return;
     const reord = localFields.map((f, i) => ({ ...f, order: i }));
-    updateCard(cardId, { ...card, fields: reord } as unknown as ScannedCard);
+  updateCard(cardId, {
+  ...card.data,
+  fullText: (card.data as any)?.fullText || ''
+} as OCRData);
+
     setIsSaving(true);
     setSaveFieldErrors({});
     try {
@@ -778,7 +782,7 @@ export default function ScanScreen() {
               {item.hasBothSides && <View style={S.dualBanner}><Ionicons name="swap-horizontal" size={14} color={colors.amber} /><Text style={S.dualBannerTxt}>Fields merged from front & back</Text></View>}
               {qrBanner && qrBanner.cardId === item.id && <QRBanner fields={qrBanner.fields} onDismiss={() => setQrBanner(null)} />}
               {!isEdit && gstF && <View style={S.gstBanner}><Ionicons name="receipt-outline" size={14} color="#0891b2" /><Text style={S.gstTxt}>GST: {gstF.value}</Text><TouchableOpacity onPress={() => copyField(gstF.value, 'gst')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Ionicons name="copy-outline" size={13} color="#0891b2" /></TouchableOpacity></View>}
-              {!isEdit && partF.length > 0 && <View style={S.partnerBanner}><Ionicons name="handshake-outline" size={14} color="#16a34a" /><Text style={S.partnerTxt} numberOfLines={2}>{partF.map(f => f.value).join(' • ')}</Text></View>}
+              {!isEdit && partF.length > 0 && <View style={S.partnerBanner}><Ionicons name="people-circle-sharp" size={14} color="#16a34a" /><Text style={S.partnerTxt} numberOfLines={2}>{partF.map(f => f.value).join(' • ')}</Text></View>}
               {isEdit && <TouchableOpacity style={S.reclassBar} onPress={reclassify}><Ionicons name="sparkles" size={15} color={colors.amberDark} /><Text style={S.reclassText}>Auto-fix field types</Text><Ionicons name="chevron-forward" size={13} color={colors.amber} /></TouchableOpacity>}
               {dF.map(f => (
                 <FieldRow

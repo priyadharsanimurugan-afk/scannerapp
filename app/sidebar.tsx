@@ -291,7 +291,7 @@ const styles = StyleSheet.create({
     borderRadius:   10,
     position:       'relative',
     overflow:       'hidden',
-    transition:     'all 0.2s ease-in-out',
+    // transition:     'all 0.2s ease-in-out',
   },
   navItemActive: {
     backgroundColor: 'rgba(245,159,10,0.13)',
@@ -314,7 +314,7 @@ const styles = StyleSheet.create({
     borderRadius:   9,
     justifyContent: 'center',
     alignItems:     'center',
-    transition:     'all 0.2s ease-in-out',
+    // transition:     'all 0.2s ease-in-out',
   },
   navIconWrapActive: {
     backgroundColor: colors.amber,
@@ -323,7 +323,7 @@ const styles = StyleSheet.create({
     fontSize:   13,
     fontWeight: '600',
     color:      'rgba(255,255,255,0.45)',
-    transition: 'color 0.2s ease-in-out',
+    // transition: 'color 0.2s ease-in-out',
   },
   navLabelActive: {
     color:      colors.white,
@@ -338,7 +338,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 4,
     borderRadius:  10,
-    transition:    'all 0.2s ease-in-out',
+    // transition:    'all 0.2s ease-in-out',
   },
   userFooterDisabled: {
     opacity: 0.6,

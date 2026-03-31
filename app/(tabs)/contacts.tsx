@@ -488,7 +488,11 @@ const EditSheet = ({
   };
 
   const SH = (t: string) => <Text style={esS.sectionHead}>{t}</Text>;
-
+const validateEmailFormat = (email: string) => {
+  const emailRegex = /^[^\s@]+@([^\s@]+\.)+[^\s@]+$/;
+  if (!email) return undefined;
+  return emailRegex.test(email) ? undefined : 'Invalid email format';
+};
   return (
     <Modal
       visible={visible}
@@ -559,21 +563,34 @@ const EditSheet = ({
               <EditField 
                 label="Phone 1" 
                 value={form.phoneNumber1} 
-                onChange={sf('phoneNumber1')} 
+                // onChange={sf('phoneNumber1')} 
+                 onChange={(text) => {
+                // Allow only numbers and limit to 12 characters
+                const cleaned = text.replace(/[^0-9]/g, '').slice(0, 12);
+                sf('phoneNumber1')(cleaned);
+              }}
                 keyboardType="phone-pad" 
                 error={fieldErrors.phoneNumber1}
               />
               <EditField 
                 label="Phone 2" 
                 value={form.phoneNumber2} 
-                onChange={sf('phoneNumber2')} 
+                   onChange={(text) => {
+                // Allow only numbers and limit to 12 characters
+                const cleaned = text.replace(/[^0-9]/g, '').slice(0, 12);
+                sf('phoneNumber2')(cleaned);
+              }}
                 keyboardType="phone-pad" 
                 error={fieldErrors.phoneNumber2}
               />
               <EditField 
                 label="Phone 3" 
                 value={form.phoneNumber3} 
-                onChange={sf('phoneNumber3')} 
+                  onChange={(text) => {
+                // Allow only numbers and limit to 12 characters
+                const cleaned = text.replace(/[^0-9]/g, '').slice(0, 12);
+                sf('phoneNumber3')(cleaned);
+              }}
                 keyboardType="phone-pad" 
                 error={fieldErrors.phoneNumber3}
               />
@@ -584,14 +601,14 @@ const EditSheet = ({
                 value={form.email1} 
                 onChange={sf('email1')} 
                 keyboardType="email-address" 
-                error={fieldErrors.email1}
+                 error={fieldErrors.email1 || validateEmailFormat(form.email1)} 
               />
               <EditField 
                 label="Email 2" 
                 value={form.email2} 
                 onChange={sf('email2')} 
                 keyboardType="email-address" 
-                error={fieldErrors.email2}
+                 error={fieldErrors.email1 || validateEmailFormat(form.email1)} 
               />
 
               {SH('Online Presence')}

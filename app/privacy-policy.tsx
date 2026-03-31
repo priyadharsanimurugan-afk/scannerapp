@@ -82,7 +82,7 @@ const sections = [
     icon: "shield-outline",
     title: "Privacy Protection",
     content:
-      "Your data is private and used only within the app. We do not sell, rent, or share your information with third parties.",
+      "Your data is private and used only within the app. We do not sell, rent, or share your information with third parties. We do not display ads or use third-party advertising services.",
   },
   {
     icon: "lock-closed-outline",
@@ -154,7 +154,8 @@ const sections = [
         {/* ── Header ── */}
         <View style={styles.header}>
           <TouchableOpacity
-            onPress={() => router.push("/login")}
+            onPress={() => router.back()}
+
             activeOpacity={0.8}
             // @ts-ignore
             className={isWeb ? "pp-back" : ""}
@@ -215,7 +216,7 @@ const sections = [
             resizeMode="contain"
           />
           <Text style={styles.footerBrand}>CardScan Pro</Text>
-          <Text style={styles.footerCopy}>© 2024 CardScan Pro. All rights reserved.</Text>
+          <Text style={styles.footerCopy}>© 2026 CardScan Pro. All rights reserved.</Text>
   
         </View>
       </Animated.View>

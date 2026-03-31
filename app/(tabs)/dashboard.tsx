@@ -106,7 +106,7 @@ const ContactDetailModal = ({
     <Modal
       visible={visible}
       animationType="slide"
-      presentationStyle={isDesktop ? "center" : "pageSheet"}
+    presentationStyle={isDesktop ? "formSheet" : "pageSheet"}
       transparent={isDesktop}
       onRequestClose={onClose}
     >

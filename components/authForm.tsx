@@ -42,14 +42,15 @@ interface AuthFormsProps {
   checkStrength: (val: string) => void;
   fieldErrors: Record<string, string[]>;
   clearFieldError: (field: string) => void;
-  userNameRef: React.RefObject<TextInput>;
-  loginPassRef: React.RefObject<TextInput>;
-  signupUserNameRef: React.RefObject<TextInput>;
-  signupPhoneRef: React.RefObject<TextInput>;
-  signupEmailRef: React.RefObject<TextInput>;
-  signupPassRef: React.RefObject<TextInput>;
-  confirmPassRef: React.RefObject<TextInput>;
-  forgotEmailRef: React.RefObject<TextInput>;
+userNameRef: React.RefObject<TextInput | null>;
+loginPassRef: React.RefObject<TextInput | null>;
+signupUserNameRef: React.RefObject<TextInput | null>;
+signupPhoneRef: React.RefObject<TextInput | null>;
+signupEmailRef: React.RefObject<TextInput | null>;
+signupPassRef: React.RefObject<TextInput | null>;
+confirmPassRef: React.RefObject<TextInput | null>;
+forgotEmailRef: React.RefObject<TextInput | null>;
+
   handleFieldChange: (field: string) => void;
 }
 
@@ -128,7 +129,7 @@ export const AuthForms: React.FC<AuthFormsProps> = ({
             <TextInput
               ref={userNameRef}
               style={loginStyles.input}
-              placeholder="your username"
+              placeholder="Enter username"
               placeholderTextColor={colors.inputPlaceholder}
               value={userName}
               onChangeText={(text) => handleInputChange(setUserName, text, 'UserName')}
@@ -152,7 +153,7 @@ export const AuthForms: React.FC<AuthFormsProps> = ({
             <TextInput
               ref={loginPassRef}
               style={loginStyles.input}
-              placeholder="Enter your password"
+              placeholder="Enter password"
               placeholderTextColor={colors.inputPlaceholder}
               secureTextEntry={!showLoginPass}
               value={loginPass}
@@ -218,7 +219,7 @@ export const AuthForms: React.FC<AuthFormsProps> = ({
             <TextInput
               ref={signupUserNameRef}
               style={loginStyles.input}
-              placeholder="your name"
+              placeholder="Enter username"
               placeholderTextColor={colors.inputPlaceholder}
               value={userName}
               onChangeText={(text) => handleInputChange(setUserName, text, 'UserName')}
@@ -258,7 +259,7 @@ export const AuthForms: React.FC<AuthFormsProps> = ({
         </View>
 
         <View style={loginStyles.inputGroup}>
-          <Text style={loginStyles.label}>Work Email</Text>
+          <Text style={loginStyles.label}> Email Id</Text>
           <View style={[
             loginStyles.inputWrap,
             emailError && { borderColor: '#E24B4A' }
@@ -267,7 +268,7 @@ export const AuthForms: React.FC<AuthFormsProps> = ({
             <TextInput
               ref={signupEmailRef}
               style={loginStyles.input}
-              placeholder="you@company.com"
+              placeholder="Enter email"
               placeholderTextColor={colors.inputPlaceholder}
               value={signupEmail}
               onChangeText={(text) => handleInputChange(setSignupEmail, text, 'Email')}

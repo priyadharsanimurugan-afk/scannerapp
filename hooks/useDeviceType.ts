@@ -4,13 +4,15 @@ import { Dimensions, Platform } from 'react-native';
 
 export const useDeviceType = () => {
   const [isDesktop, setIsDesktop] = useState(false);
+  const [isTablet, setIsTablet] = useState(false);
 
   useEffect(() => {
     const checkDevice = () => {
       const width = Dimensions.get('window').width;
-      // Consider devices with width > 768px as desktop/tablet
-      // You can adjust this threshold as needed
-      setIsDesktop(width > 768);
+      // Consider devices with width >= 1024px as desktop
+      // Tablets are between 768px and 1023px
+      setIsDesktop(width >= 1024);
+      setIsTablet(width >= 768 && width < 1024);
     };
 
     // Check initial device
@@ -22,5 +24,5 @@ export const useDeviceType = () => {
     return () => subscription?.remove();
   }, []);
 
-  return { isDesktop };
+  return { isDesktop, isTablet };
 };

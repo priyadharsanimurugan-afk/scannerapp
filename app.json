@@ -9,7 +9,13 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.priyachithra.BusinessCardScanner",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Allow camera to scan business cards",
+        "NSPhotoLibraryUsageDescription": "Allow access to photos to scan business cards",
+        "NSPhotoLibraryAddUsageDescription": "Allow saving scanned images"
+      }
     },
     "android": {
       "package": "com.priyachithra.BusinessCardScanner",
@@ -22,8 +28,7 @@
         "backgroundColor": "#0F1F3D"
       },
       "permissions": [
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.CAMERA"
       ]
     },
     "web": {
