@@ -1,16 +1,16 @@
 {
   "expo": {
     "name": "CardScan Pro",
-    "slug": "BusinessCardScanner",
+    "slug": "CardScannerPro",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/scannerlogo.png",
-    "scheme": "Scannify",
+    "scheme": "cardscanner",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.priyachithra.BusinessCardScanner",
+      "bundleIdentifier": "com.cardscanner.realtime",
       "infoPlist": {
         "NSCameraUsageDescription": "Allow camera to scan business cards",
         "NSPhotoLibraryUsageDescription": "Allow access to photos to scan business cards",
@@ -18,7 +18,7 @@
       }
     },
     "android": {
-      "package": "com.priyachithra.BusinessCardScanner",
+      "package": "com.cardscanner.realtime",
       "softwareKeyboardLayoutMode": "pan",
       "usesCleartextTraffic": true,
       "edgeToEdgeEnabled": true,
@@ -68,12 +68,6 @@
       "typedRoutes": true,
       "reactCompiler": true
     },
-    "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "23d006ed-f099-4afc-9292-2f187e234ab7"
-      }
-    },
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -81,7 +75,6 @@
       "enabled": true,
       "checkAutomatically": "ON_LOAD",
       "fallbackToCacheTimeout": 0
-    },
-    "owner": "priya077"
+    }
   }
 }
