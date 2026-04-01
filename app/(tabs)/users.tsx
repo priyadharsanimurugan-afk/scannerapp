@@ -1,16 +1,11 @@
 import React, { useEffect, useState } from "react";
 import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
-  Platform,
-  useWindowDimensions,
-  Alert,
+  View, Text, ScrollView, TouchableOpacity,
+  ActivityIndicator, useWindowDimensions,
+  Modal, TextInput, Alert, Platform,
+  KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard
 } from "react-native";
 import { useRouter } from "expo-router";
-
 import { dashboardStyles } from "@/components/styles/dashboardStyles";
 import { colors } from "@/constants/colors";
 import { getAllUsers, upgradeUser, downgradeUser } from "@/services/users";
@@ -18,406 +13,673 @@ import { SidebarLayout } from "../sidebar";
 import { Toast } from "@/components/webalert";
 import { getRoles } from "@/utils/tokenStorage";
 import { useProfile } from "@/hooks/useProfile";
+import { useAdminPremiumRequests, useReviewPremiumRequest } from "@/hooks/useAdminPremium";
+import { Ionicons } from "@expo/vector-icons";
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-// Platform-specific alert (keeping this as it's separate functionality)
-const showWebAlert = (title: string, message: string, onConfirm: () => void) => {
-  if (Platform.OS !== 'web') return;
-
-  // Create modal overlay
-  const overlay = document.createElement('div');
-  overlay.style.cssText = `
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(4px);
-    z-index: 999999;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    animation: fadeIn 0.2s ease-out;
-  `;
-
-  // Create modal
-  const modal = document.createElement('div');
-  modal.style.cssText = `
-    background: linear-gradient(135deg, #1a1f2e 0%, #0f1119 100%);
-    border-radius: 24px;
-    padding: 24px;
-    width: 90%;
-    max-width: 400px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(245, 159, 10, 0.2);
-    animation: slideUp 0.3s ease-out;
-  `;
-
-  // Title
-  const titleEl = document.createElement('h3');
-  titleEl.textContent = title;
-  titleEl.style.cssText = `
-    color: #fff;
-    font-size: 20px;
-    font-weight: 700;
-    margin: 0 0 12px 0;
-    background: linear-gradient(135deg, #fff 0%, #f59f0a 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  `;
-
-  // Message
-  const messageEl = document.createElement('p');
-  messageEl.textContent = message;
-  messageEl.style.cssText = `
-    color: rgba(255, 255, 255, 0.7);
-    font-size: 14px;
-    line-height: 1.5;
-    margin: 0 0 24px 0;
-  `;
-
-  // Button container
-  const buttonContainer = document.createElement('div');
-  buttonContainer.style.cssText = `
-    display: flex;
-    gap: 12px;
-    justify-content: flex-end;
-  `;
-
-  // Cancel button
-  const cancelBtn = document.createElement('button');
-  cancelBtn.textContent = 'Cancel';
-  cancelBtn.style.cssText = `
-    background: rgba(255, 255, 255, 0.1);
-    border: none;
-    padding: 10px 20px;
-    border-radius: 12px;
-    color: rgba(255, 255, 255, 0.7);
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-  `;
-  cancelBtn.onmouseenter = () => {
-    cancelBtn.style.background = 'rgba(255, 255, 255, 0.15)';
-  };
-  cancelBtn.onmouseleave = () => {
-    cancelBtn.style.background = 'rgba(255, 255, 255, 0.1)';
-  };
-  cancelBtn.onclick = () => {
-    document.body.removeChild(overlay);
-  };
-
-  // Confirm button
-  const confirmBtn = document.createElement('button');
-  confirmBtn.textContent = title === 'Upgrade User' ? 'Upgrade' : 'Downgrade';
-  confirmBtn.style.cssText = `
-    background: linear-gradient(135deg, #f59f0a 0%, #d97706 100%);
-    border: none;
-    padding: 10px 20px;
-    border-radius: 12px;
-    color: white;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-    box-shadow: 0 2px 8px rgba(245, 159, 10, 0.3);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  `;
-
-  confirmBtn.onmouseenter = () => {
-    confirmBtn.style.transform = 'translateY(-1px)';
-    confirmBtn.style.boxShadow = '0 4px 12px rgba(245, 159, 10, 0.4)';
-  };
-  confirmBtn.onmouseleave = () => {
-    confirmBtn.style.transform = 'translateY(0)';
-    confirmBtn.style.boxShadow = '0 2px 8px rgba(245, 159, 10, 0.3)';
-  };
-  confirmBtn.onclick = () => {
-    document.body.removeChild(overlay);
-    onConfirm();
-  };
-
-  // Add keyframe animations
-  const style = document.createElement('style');
-  style.textContent = `
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-    @keyframes slideUp {
-      from {
-        opacity: 0;
-        transform: translateY(20px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-  `;
-  document.head.appendChild(style);
-
-  buttonContainer.appendChild(cancelBtn);
-  buttonContainer.appendChild(confirmBtn);
-  modal.appendChild(titleEl);
-  modal.appendChild(messageEl);
-  modal.appendChild(buttonContainer);
-  overlay.appendChild(modal);
-  document.body.appendChild(overlay);
-};
-
-// Platform-specific alert wrapper
-const showAlert = (title: string, message: string, onConfirm: () => void) => {
-  if (Platform.OS === 'web') {
-    showWebAlert(title, message, onConfirm);
+const confirm = (title: string, msg: string, onOk: () => void) => {
+  if (Platform.OS === "web") {
+    if (window.confirm(`${title}\n${msg}`)) onOk();
   } else {
-    Alert.alert(title, message, [
+    Alert.alert(title, msg, [
       { text: "Cancel", style: "cancel" },
-      { text: "Confirm", onPress: onConfirm },
+      { text: "OK", onPress: onOk },
     ]);
   }
 };
 
+const getItemsPerPage = (width: number) => {
+  if (width >= 1440) return 12;
+  if (width >= 1024) return 10;
+  if (width >= 768) return 8;
+  return 6;
+};
+
+const paginate = <T,>(arr: T[], page: number, perPage: number) =>
+  arr.slice((page - 1) * perPage, page * perPage);
+
+const formatDate = (dateString: string) => {
+  if (!dateString) return "N/A";
+
+  try {
+    const date = new Date(dateString);
+
+    if (isNaN(date.getTime())) return "Invalid date";
+
+    // Convert to IST manually (UTC + 5:30)
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const istDate = new Date(date.getTime() + istOffset);
+
+    return istDate.toLocaleString("en-IN", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  } catch {
+    return "Invalid date";
+  }
+};
+
+
+// ─── Empty State ──────────────────────────────────────────────────────────────
+
+const EmptyState = ({ icon, title, message, isMobile }: {
+  icon: string; title: string; message: string; isMobile: boolean;
+}) => (
+  <View style={[s.emptyContainer, isMobile && s.emptyContainerMobile]}>
+    <Text style={[s.emptyIcon, isMobile && { fontSize: 48 }]}>{icon}</Text>
+    <Text style={[s.emptyTitle, isMobile && { fontSize: 18 }]}>{title}</Text>
+    <Text style={[s.emptyMessage, isMobile && { fontSize: 12, maxWidth: 250 }]}>{message}</Text>
+  </View>
+);
+
+// ─── Pagination ───────────────────────────────────────────────────────────────
+
+const Pagination = ({ page, total, onChange }: {
+  page: number; total: number; onChange: (p: number) => void;
+}) =>
+  total > 1 ? (
+    <View style={s.pageRow}>
+      <TouchableOpacity disabled={page === 1} onPress={() => onChange(page - 1)}
+        style={[s.pageBtn, page === 1 && s.pageBtnOff]}>
+        <Text style={s.pageTxt}>‹ Prev</Text>
+      </TouchableOpacity>
+      <Text style={s.pageInfo}>{page} / {total}</Text>
+      <TouchableOpacity disabled={page === total} onPress={() => onChange(page + 1)}
+        style={[s.pageBtn, page === total && s.pageBtnOff]}>
+        <Text style={s.pageTxt}>Next ›</Text>
+      </TouchableOpacity>
+    </View>
+  ) : null;
+
+// ─── Review Modal ─────────────────────────────────────────────────────────────
+
+const ReviewModal = ({ visible, request, loading, onClose, onSubmit }: {
+  visible: boolean; request: any; loading: boolean;
+  onClose: () => void; onSubmit: (approve: boolean, remark: string) => void;
+}) => {
+  const [remark, setRemark] = useState("");
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
+
+  const rows: [string, string][] = request ? [
+    ["User", request.userName],
+    ["Email", request.email],
+    ["Phone", request.phoneNumber],
+    ["Plan", request.accountType],
+    ...(request.message ? [["Message", request.message] as [string, string]] : []),
+    ...(request.paymentReference ? [["Payment Ref", request.paymentReference] as [string, string]] : []),
+  ] : [];
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={s.overlay}>
+            <TouchableWithoutFeedback>
+              <View style={[s.card, isMobile && s.cardMobile]}>
+                <Text style={s.modalTitle}>Review Premium Request</Text>
+
+                <ScrollView
+                  style={{ maxHeight: isMobile ? 380 : 500 }}
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}>
+                  {rows.map(([label, value]) => (
+                    <View key={label} style={s.infoRow}>
+                      <Text style={s.infoLabel}>{label}</Text>
+                      <Text style={[s.infoValue, isMobile && { maxWidth: "55%", fontSize: 12 }]}
+                        numberOfLines={2}>{value}</Text>
+                    </View>
+                  ))}
+
+                  <Text style={s.remarkLabel}>Admin Remark</Text>
+                  <TextInput
+                    style={[s.input, isMobile && s.inputMobile]}
+                    value={remark}
+                    onChangeText={setRemark}
+                    placeholder="Enter remarks..."
+                    placeholderTextColor="rgba(0,0,0,0.3)"
+                    multiline
+                    numberOfLines={isMobile ? 3 : 4}
+                    textAlignVertical="top"
+                    returnKeyType="done"
+                    blurOnSubmit
+                  />
+                </ScrollView>
+
+                <View style={[s.btnRow, isMobile && { gap: 8 }]}>
+                  <TouchableOpacity
+                    style={[s.btn, { backgroundColor: "#ef4444" }, isMobile && s.btnMobile]}
+                    onPress={() => onSubmit(false, remark)} disabled={loading}>
+                    <Text style={s.btnTxt}>Reject</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[s.btn, { backgroundColor: "#10b981" }, isMobile && s.btnMobile]}
+                    onPress={() => onSubmit(true, remark)} disabled={loading}>
+                    <Text style={s.btnTxt}>Approve</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[s.btn, { backgroundColor: "rgba(0,0,0,0.1)" }, isMobile && s.btnMobile]}
+                    onPress={onClose} disabled={loading}>
+                    <Text style={s.btnTxt}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {loading && <ActivityIndicator style={{ marginTop: 12 }} color={colors.amber} />}
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+};
+
+// ─── Card Components ──────────────────────────────────────────────────────────
+
+const Avatar = ({ letter, bg, isMobile }: { letter: string; bg: string; isMobile: boolean }) => (
+  <View style={[
+    dashboardStyles.contactAvatar,
+    { backgroundColor: bg, alignSelf: "flex-start", marginTop: 2 },
+    isMobile && { width: 40, height: 40, borderRadius: 20 },
+  ]}>
+    <Text style={[dashboardStyles.contactAvatarText, isMobile && { fontSize: 18 }]}>
+      {letter?.toUpperCase() || "U"}
+    </Text>
+  </View>
+);
+
+const CardRow = ({ label, value, isMobile, numberOfLines = 1 }: {
+  label?: string; value: string; isMobile: boolean; numberOfLines?: number;
+}) => (
+  <Text style={[dashboardStyles.contactRole, isMobile && s.mobileMetaText]} numberOfLines={numberOfLines}>
+    {label ? <Text style={s.metaLabel}>{label}: </Text> : null}{value}
+  </Text>
+);
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
+
 export default function UsersScreen() {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
-  const { width } = useWindowDimensions();
-  const router = useRouter();
-  
-  const isDesktop = width >= 1024;
-  const USERS_PER_PAGE = 10;
-
-  // Calculate pagination
-  const indexOfLastUser = currentPage * USERS_PER_PAGE;
-  const indexOfFirstUser = indexOfLastUser - USERS_PER_PAGE;
-  const currentUsers = users.slice(indexOfFirstUser, indexOfLastUser);
-  const totalPages = Math.ceil(users.length / USERS_PER_PAGE);
+  const [tab, setTab] = useState<"users" | "approved" | "rejected" | "requests">("users");
+  const [userPage, setUserPage] = useState(1);
+  const [approvedPage, setApprovedPage] = useState(1);
+  const [rejectedPage, setRejectedPage] = useState(1);
+  const [reqPage, setReqPage] = useState(1);
+  const [selectedReq, setSelectedReq] = useState<any>(null);
   const [roles, setRoles] = useState<string[] | null>(null);
 
-    const { profile, loading: profileLoading } = useProfile();
+  const { width } = useWindowDimensions();
+  const router = useRouter();
+  const isDesktop = width >= 1024;
+  const isMobile = width < 768;
 
+  const { profile } = useProfile();
+  const { data: requests, loading: reqLoading, fetchRequests } = useAdminPremiumRequests();
+  const { review, loading: reviewLoading } = useReviewPremiumRequest();
+
+  const itemsPerPage = getItemsPerPage(width);
+  const approvedRequests = requests.filter(r => r.status === "Approved");
+  const rejectedRequests = requests.filter(r => r.status === "Rejected");
+  const pendingRequests  = requests.filter(r => r.status === "Pending");
+
+  useEffect(() => { getRoles().then(setRoles); }, []);
   useEffect(() => {
-    const loadRoles = async () => {
-      const storedRoles = await getRoles();
-      setRoles(storedRoles);
-    };
-    loadRoles();
+    getAllUsers()
+      .then(setUsers)
+      .catch(() => Toast.error("Failed to fetch users"))
+      .finally(() => setLoading(false));
   }, []);
 
-    const getUserFullName = () => profile?.userName || "User";
-  const fetchUsers = async () => {
+  const handleUpgrade = (name: string, id: string) =>
+    confirm("Upgrade User", `Upgrade ${name} to Premium?`, async () => {
+      try {
+        await upgradeUser(id);
+        setUsers(u => u.map(x => x.id === id ? { ...x, accountType: "Premium" } : x));
+        Toast.success(`${name} upgraded!`);
+      } catch { Toast.error("Upgrade failed."); }
+    });
+
+  const handleDowngrade = (name: string, id: string) =>
+    confirm("Downgrade User", `Downgrade ${name} to Free?`, async () => {
+      try {
+        await downgradeUser(id);
+        setUsers(u => u.map(x => x.id === id ? { ...x, accountType: "Free" } : x));
+        Toast.success(`${name} downgraded!`);
+      } catch { Toast.error("Downgrade failed."); }
+    });
+
+  const handleReview = async (approve: boolean, remark: string) => {
+    if (!selectedReq) return;
     try {
-      const data = await getAllUsers();
-      setUsers(data);
-    } catch (err) {
-      console.log(err);
-      Toast.error('Failed to fetch users');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  const handleUpgrade = async (userName: string, id: string) => {
-    showAlert(
-      "Upgrade User",
-      `Are you sure you want to upgrade ${userName} to Premium?`,
-      async () => {
-        try {
-          await upgradeUser(id);
-          fetchUsers();
-          Toast.success(`${userName} has been upgraded to Premium!`);
-        } catch (error) {
-          console.log("Upgrade failed:", error);
-          Toast.error('Upgrade failed. Please try again.');
-        }
+      await review(selectedReq.id, approve, remark);
+      if (approve) {
+        setUsers(prev => prev.map(u =>
+          u.id === selectedReq.userId ? { ...u, accountType: "Premium" } : u
+        ));
       }
-    );
+      Toast.success(`Request ${approve ? "approved" : "rejected"}!`);
+      setSelectedReq(null);
+      fetchRequests();
+    } catch { Toast.error("Failed to process request."); }
   };
 
-  const handleDowngrade = async (userName: string, id: string) => {
-    showAlert(
-      "Downgrade User",
-      `Are you sure you want to downgrade ${userName} to Free plan?`,
-      async () => {
-        try {
-          await downgradeUser(id);
-          fetchUsers();
-          Toast.success(`${userName} has been downgraded to Free plan!`);
-        } catch (error) {
-          console.log("Downgrade failed:", error);
-          Toast.error('Downgrade failed. Please try again.');
-        }
-      }
-    );
-  };
+  const isLoading = loading || (tab === "requests" && reqLoading);
 
-  const UsersContent = () => {
-    if (loading) {
-      return (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" color={colors.amber} />
-        </View>
-      );
-    }
+  // ─── Card Renders ────────────────────────────────────────────────────────────
 
-    return (
-      <View style={[dashboardStyles.container, isDesktop && { backgroundColor: colors.phoneBg }]}>
-        {/* HEADER WITH GLOW */}
-        <View style={dashboardStyles.header}>
-          <View style={dashboardStyles.headerGlow1} />
-          <View style={dashboardStyles.headerGlow2} />
-
-          <View style={dashboardStyles.headerTop}>
-            <View>
-              <Text style={dashboardStyles.greetText}>Admin Panel</Text>
-              <Text style={dashboardStyles.titleText}>
-                Manage <Text style={dashboardStyles.titleSpan}>Users</Text>
-              </Text>
-              {!isDesktop && (
-                <TouchableOpacity 
-                  onPress={() => router.back()}
-                  style={{ marginTop: 8 }}
-                >
-                  <Text style={{ color: colors.amber, fontSize: 14 }}>
-                    ← Back
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-        </View>
-
-        <ScrollView
-          style={[dashboardStyles.body, isDesktop && { maxWidth: 1200, alignSelf: 'center', width: '100%' }]}
-          contentContainerStyle={{ paddingBottom: 40 }}
-        >
-          {/* Section Header */}
-          <View style={dashboardStyles.sectionHead}>
-            <Text style={dashboardStyles.sectionTitle}>All Users</Text>
-            <Text style={dashboardStyles.sectionSubtitle}>
-              Total: {users.length} users
+  const renderUserCard = (user: any) => (
+    <View key={user.id} style={[dashboardStyles.contactCard, isMobile && s.mobileCard]}>
+      <Avatar letter={user.userName?.[0]} bg={colors.navy} isMobile={isMobile} />
+      <View style={s.cardBody}>
+        <Text style={[dashboardStyles.contactName, isMobile && s.mobileCardName]} numberOfLines={1}>
+          {user.userName || "Unnamed"}
+        </Text>
+    
+        <View style={s.badgeRow}>
+          <View style={[s.planBadge, user.accountType === "Premium" && s.planBadgePremium]}>
+            <Text style={[s.planBadgeTxt, user.accountType === "Premium" && s.planBadgeTxtPremium]}>
+              {user.accountType || "Free"}
             </Text>
           </View>
+          <Text style={[dashboardStyles.remainingScans, isMobile && s.mobileMetaText]}>
+            {user.remainingScans || 0} scans left
+          </Text>
+            <CardRow value={user.email || "No email"} isMobile={isMobile} numberOfLines={1} />
+        </View>
+      </View>
+      <View style={s.cardAction}>
+        {user.accountType === "Premium" ? (
+          <TouchableOpacity style={[dashboardStyles.downgradeButton, isMobile && s.mobileActionBtn]}
+            onPress={() => handleDowngrade(user.userName, user.id)}>
+            <Text style={[dashboardStyles.buttonText, isMobile && s.mobileActionTxt]}>Downgrade</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity style={[dashboardStyles.upgradeButton, isMobile && s.mobileActionBtn]}
+            onPress={() => handleUpgrade(user.userName, user.id)}>
+            <Text style={[dashboardStyles.buttonText, isMobile && s.mobileActionTxt]}>Upgrade</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
 
-          {/* Users List */}
-          <View style={dashboardStyles.contactList}>
-            {currentUsers.map((user) => (
-              <View key={user.id} style={dashboardStyles.contactCard}>
-                {/* Avatar */}
-                <View
-                  style={[
-                    dashboardStyles.contactAvatar,
-                    { backgroundColor: colors.navy },
-                  ]}
-                >
-                  <Text style={dashboardStyles.contactAvatarText}>
-                    {user.userName?.[0]?.toUpperCase() || "U"}
-                  </Text>
-                </View>
+ const renderApprovedCard = (req: any) => (
+  <View key={req.id} style={[dashboardStyles.contactCard, isMobile && s.mobileCard, s.approvedCard]}>
+    <Avatar letter={req.userName?.[0]} bg="#10b981" isMobile={isMobile} />
+    <View style={s.cardBody}>
+      <View style={s.nameRowWithBadge}>
+        <Text style={[dashboardStyles.contactName, isMobile && s.mobileCardName, { flex: 1 }]} numberOfLines={1}>
+          {req.userName || "Unnamed"}
+        </Text>
+        <View style={s.approvedBadge}><Text style={s.approvedBadgeTxt}>✓ Approved</Text></View>
+      </View>
+      <CardRow value={req.email || "No email"} isMobile={isMobile} />
+      {req.phoneNumber && <CardRow label="Phone" value={req.phoneNumber} isMobile={isMobile} />}
+      <CardRow label="Upgraded to" value={req.accountType === "Premium" ? "Premium Plan" : "Free Plan"} isMobile={isMobile} />
+      {req.message && <CardRow label="Message" value={req.message} isMobile={isMobile} numberOfLines={2} />}
+      {req.paymentReference && <CardRow label="Payment Ref" value={req.paymentReference} isMobile={isMobile} />}
+      {req.adminRemark && <CardRow label="Admin Remark" value={req.adminRemark} isMobile={isMobile} numberOfLines={2} />}
+      <CardRow label="Reviewed On" value={formatDate(req.reviewedAtUtc)} isMobile={isMobile} />
+    </View>
+  </View>
+);
 
-                {/* User Info */}
-                <View style={dashboardStyles.contactInfo}>
-                  <Text style={dashboardStyles.contactName}>
-                    {user.userName || "Unnamed User"}
-                  </Text>
-                  <Text style={dashboardStyles.contactRole}>
-                    {user.email || "No email"}
-                  </Text>
-                  <View style={dashboardStyles.planBadge}>
-                    <Text style={[
-                      dashboardStyles.contactCompany,
-                      user.accountType === "Premium" && dashboardStyles.premiumText
-                    ]}>
-                      {user.accountType || "Free"} Plan
-                    </Text>
-                  </View>
-                  <Text style={dashboardStyles.remainingScans}>
-                    {user.remainingScans || 0} scans remaining
-                  </Text>
-                </View>
+const renderRejectedCard = (req: any) => (
+  <View key={req.id} style={[dashboardStyles.contactCard, isMobile && s.mobileCard, s.rejectedCard]}>
+    <Avatar letter={req.userName?.[0]} bg="#ef4444" isMobile={isMobile} />
+    <View style={s.cardBody}>
+      <View style={s.nameRowWithBadge}>
+        <Text style={[dashboardStyles.contactName, isMobile && s.mobileCardName, { flex: 1 }]} numberOfLines={1}>
+          {req.userName || "Unnamed"}
+        </Text>
+        <View style={s.rejectedBadge}><Text style={s.rejectedBadgeTxt}>✗ Rejected</Text></View>
+      </View>
+      <CardRow value={req.email || "No email"} isMobile={isMobile} />
+      {req.phoneNumber && <CardRow label="Phone" value={req.phoneNumber} isMobile={isMobile} />}
+      <CardRow label="Requested" value={req.accountType === "Premium" ? "Premium Plan" : "Free Plan"} isMobile={isMobile} />
+      {req.message && <CardRow label="Message" value={req.message} isMobile={isMobile} numberOfLines={2} />}
+      {req.paymentReference && <CardRow label="Payment Ref" value={req.paymentReference} isMobile={isMobile} />}
+      {req.adminRemark && <CardRow label="Rejection Reason" value={req.adminRemark} isMobile={isMobile} numberOfLines={2} />}
+      <CardRow label="Reviewed On" value={formatDate(req.reviewedAtUtc)} isMobile={isMobile} />
+    </View>
+  </View>
+);
 
-                {/* Action Buttons */}
-                <View>
-                  {user.accountType === "Premium" ? (
-                    <TouchableOpacity
-                      style={dashboardStyles.downgradeButton}
-                      onPress={() => handleDowngrade(user.userName, user.id)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={dashboardStyles.buttonText}>Downgrade</Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <TouchableOpacity
-                      style={dashboardStyles.upgradeButton}
-                      onPress={() => handleUpgrade(user.userName, user.id)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={dashboardStyles.buttonText}>Upgrade</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </View>
-            ))}
+  const renderRequestCard = (req: any) => (
+    <View key={req.id} style={[dashboardStyles.contactCard, isMobile && s.mobileCard]}>
+      <Avatar letter={req.userName?.[0]} bg={colors.navy} isMobile={isMobile} />
+      <View style={s.cardBody}>
+        <Text style={[dashboardStyles.contactName, isMobile && s.mobileCardName]} numberOfLines={1}>
+          {req.userName || "Unnamed"}
+        </Text>
+        <CardRow value={req.email} isMobile={isMobile} />
+        <CardRow label="Requesting" value={req.accountType === "Premium" ? "Premium Plan" : "Free Plan"} isMobile={isMobile} />
+        {req.message && <CardRow label="Msg" value={req.message} isMobile={isMobile} numberOfLines={2} />}
+        {req.paymentReference && <CardRow label="Ref" value={req.paymentReference} isMobile={isMobile} />}
+        <CardRow label="Date" value={formatDate(req.createdAtUtc)} isMobile={isMobile}   numberOfLines={2}/>
+      </View>
+      <View style={s.cardAction}>
+        <TouchableOpacity
+          style={[dashboardStyles.upgradeButton, { backgroundColor: colors.amber }, isMobile && s.mobileActionBtn]}
+          onPress={() => setSelectedReq(req)}>
+          <Text style={[dashboardStyles.buttonText, isMobile && s.mobileActionTxt]}>Review</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  // ─── Tab Helper ──────────────────────────────────────────────────────────────
+
+  const Section = ({ title, count, children, page, total, onPage }: {
+    title: string; count: number; children: React.ReactNode;
+    page: number; total: number; onPage: (p: number) => void;
+  }) => (
+    <>
+      <View style={[dashboardStyles.sectionHead, isMobile && { marginBottom: 16, paddingHorizontal: 8 }]}>
+        <Text style={[dashboardStyles.sectionTitle, isMobile && { fontSize: 20 }]}>{title}</Text>
+        <Text style={[dashboardStyles.sectionSubtitle, isMobile && { fontSize: 13 }]}>Total: {count}</Text>
+      </View>
+      <View style={[dashboardStyles.contactList, isMobile && { gap: 10 }]}>{children}</View>
+      <Pagination page={page} total={total} onChange={onPage} />
+    </>
+  );
+
+  // ─── Content ─────────────────────────────────────────────────────────────────
+
+  const content = (
+    <View style={[dashboardStyles.container, isDesktop && { backgroundColor: colors.phoneBg }]}>
+      {/* Header */}
+      <View style={dashboardStyles.header}>
+        <View style={dashboardStyles.headerGlow1} />
+        <View style={dashboardStyles.headerGlow2} />
+        <View style={dashboardStyles.headerTop}>
+          <View>
+            <Text style={[dashboardStyles.greetText, isMobile && { fontSize: 13 }]}>Admin Panel</Text>
+            <Text style={[dashboardStyles.titleText, isMobile && { fontSize: 24 }]}>
+              Manage <Text style={dashboardStyles.titleSpan}>Users</Text>
+            </Text>
+            {!isDesktop && (
+              <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 8 }}>
+                <Text style={{ color: colors.amber, fontSize: isMobile ? 12 : 14 }}>← Back</Text>
+              </TouchableOpacity>
+            )}
           </View>
+        </View>
+      </View>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <View style={dashboardStyles.paginationContainer}>
-              <TouchableOpacity
-                style={[
-                  dashboardStyles.paginationButton,
-                  currentPage === 1 && dashboardStyles.paginationButtonDisabled
-                ]}
-                onPress={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-              >
-                <Text style={dashboardStyles.paginationText}>Previous</Text>
-              </TouchableOpacity>
-              
-              <View style={dashboardStyles.paginationInfo}>
-                <Text style={dashboardStyles.paginationInfoText}>
-                  Page {currentPage} of {totalPages}
-                </Text>
-              </View>
-              
-              <TouchableOpacity
-                style={[
-                  dashboardStyles.paginationButton,
-                  currentPage === totalPages && dashboardStyles.paginationButtonDisabled
-                ]}
-                onPress={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                disabled={currentPage === totalPages}
-              >
-                <Text style={dashboardStyles.paginationText}>Next</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+      {/* Tabs */}
+      <View style={[s.tabsWrapper, isMobile && { marginTop: -10, marginBottom: 12 }]}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}
+          contentContainerStyle={s.tabsScrollContainer}>
+          {([
+            { key: "users",    label: `Users (${users.length})`,             active: s.tabActive },
+            { key: "requests", label: `Pending (${pendingRequests.length})`, active: s.tabActiveRequests },
+            { key: "approved", label: `Approved (${approvedRequests.length})`, active: s.tabActiveApproved },
+            { key: "rejected", label: `Rejected (${rejectedRequests.length})`, active: s.tabActiveRejected },
+          ] as const).map(({ key, label, active }) => (
+            <TouchableOpacity key={key}
+              style={[s.tab, tab === key && active, isMobile && s.tabMobile]}
+              onPress={() => { setTab(key); }}>
+              <Text style={[s.tabTxt, tab === key && s.tabTxtActive, isMobile && { fontSize: 12 }]}>
+                {label}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </ScrollView>
       </View>
-    );
-  };
 
-  // Wrap with SidebarLayout on desktop
-  if (isDesktop) {
-    return (
-      <SidebarLayout 
-        isAdmin={true}
-        userInitials="A"
-        userAvatarColor={colors.amber}
-      userName={getUserFullName()}
-     userRole={roles?.[0]}
-      >
-        <UsersContent />
-      </SidebarLayout>
-    );
-  }
+      {isLoading ? (
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", minHeight: 400 }}>
+          <ActivityIndicator size="large" color={colors.amber} />
+        </View>
+      ) : (
+        <ScrollView
+          style={[dashboardStyles.body, isDesktop && { maxWidth: 1200, alignSelf: "center", width: "100%" }]}
+          contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: isMobile ? 12 : 16 }}>
 
-  return <UsersContent />;
+          {tab === "users" && (
+            <Section title="All Users" count={users.length}
+              page={userPage} total={Math.ceil(users.length / itemsPerPage)} onPage={setUserPage}>
+              {users.length > 0
+                ? paginate(users, userPage, itemsPerPage).map(renderUserCard)
+                : <EmptyState icon="👥" title="No Users Found"
+                    message="There are no users registered in the system yet." isMobile={isMobile} />}
+            </Section>
+          )}
+
+          {tab === "requests" && (
+            <Section title="Pending Requests" count={pendingRequests.length}
+              page={reqPage} total={Math.ceil(pendingRequests.length / itemsPerPage)} onPage={setReqPage}>
+              {pendingRequests.length > 0
+                ? paginate(pendingRequests, reqPage, itemsPerPage).map(renderRequestCard)
+                : <EmptyState icon="⏳" title="No Pending Requests"
+                    message="No pending premium upgrade requests at the moment." isMobile={isMobile} />}
+            </Section>
+          )}
+
+          {tab === "approved" && (
+            <Section title="Approved Requests" count={approvedRequests.length}
+              page={approvedPage} total={Math.ceil(approvedRequests.length / itemsPerPage)} onPage={setApprovedPage}>
+              {approvedRequests.length > 0
+                ? paginate(approvedRequests, approvedPage, itemsPerPage).map(renderApprovedCard)
+                : <EmptyState icon="✅" title="No Approved Requests"
+                    message="No premium upgrade requests have been approved yet." isMobile={isMobile} />}
+            </Section>
+          )}
+
+          {tab === "rejected" && (
+            <Section title="Rejected Requests" count={rejectedRequests.length}
+              page={rejectedPage} total={Math.ceil(rejectedRequests.length / itemsPerPage)} onPage={setRejectedPage}>
+              {rejectedRequests.length > 0
+                ? paginate(rejectedRequests, rejectedPage, itemsPerPage).map(renderRejectedCard)
+                : <EmptyState icon="❌" title="No Rejected Requests"
+                    message="No premium upgrade requests have been rejected yet." isMobile={isMobile} />}
+            </Section>
+          )}
+        </ScrollView>
+      )}
+
+      <ReviewModal
+        visible={!!selectedReq}
+        request={selectedReq}
+        loading={reviewLoading}
+        onClose={() => setSelectedReq(null)}
+        onSubmit={handleReview}
+      />
+    </View>
+  );
+
+  return isDesktop ? (
+    <SidebarLayout isAdmin userInitials="A" userAvatarColor={colors.amber}
+      userName={profile?.userName || "Admin"} userRole={roles?.[0]}>
+      {content}
+    </SidebarLayout>
+  ) : content;
 }
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
+const s: any = {
+  // Tabs
+  tabsWrapper: { width: "100%", marginTop: 16, marginBottom: 16 },
+  tabsScrollContainer: { paddingHorizontal: 16, gap: 12 },
+  tab: {
+    paddingVertical: 10, paddingHorizontal: 24, borderRadius: 32,
+    backgroundColor: "rgba(255, 255, 255, 0.85)", minWidth: 100, alignItems: "center",
+  },
+  tabMobile: { paddingVertical: 8, paddingHorizontal: 16, minWidth: 90 },
+  tabActive:         { backgroundColor: "#f59f0a" },
+  tabActiveApproved: { backgroundColor: "#10b981" },
+  tabActiveRequests: { backgroundColor: "#3b82f6" },
+  tabActiveRejected: { backgroundColor: "#ef4444" },
+  tabTxt: { color: "rgba(0,0,0,0.7)", fontSize: 14, fontWeight: "600" },
+  tabTxtActive: { color: "#fff" },
+
+  // Mobile card layout — row with avatar top-aligned at start
+  mobileCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    padding: 14,
+    gap: 12,
+  },
+  cardBody: {
+    flex: 1,
+    gap: 3,
+  },
+  cardAction: {
+    justifyContent: "flex-start",
+    alignItems: "flex-end",
+    paddingTop: 2,
+  },
+  mobileCardName: {
+    fontSize: 15,
+    marginBottom: 2,
+  },
+  mobileMetaText: {
+    fontSize: 12,
+  },
+  metaLabel: {
+    color: "rgba(0,0,0,0.55)",
+    fontWeight: "600",
+  },
+  mobileActionBtn: {
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    minWidth: 84,
+  },
+  mobileActionTxt: {
+    fontSize: 12,
+  },
+
+  // Badge row inside user card
+  badgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 4,
+    flexWrap: "wrap",
+  },
+  planBadge: {
+    backgroundColor: "rgba(0,0,0,0.08)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  planBadgePremium: {
+    backgroundColor: "rgba(245,159,10,0.15)",
+  },
+  planBadgeTxt: {
+    color: "rgba(0,0,0,0.65)",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  planBadgeTxtPremium: {
+    color: "#f59f0a",
+  },
+
+  // Status badges
+  nameRowWithBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 2,
+    flexWrap: "wrap",
+  },
+  approvedBadge: {
+    backgroundColor: "#10b981",
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  approvedBadgeTxt: { color: "#fff", fontSize: 10, fontWeight: "600" },
+  rejectedBadge: {
+    backgroundColor: "#ef4444",
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  rejectedBadgeTxt: { color: "#fff", fontSize: 10, fontWeight: "600" },
+
+  // Card accent borders
+  approvedCard: { borderLeftWidth: 3, borderLeftColor: "#10b981" },
+  rejectedCard:  { borderLeftWidth: 3, borderLeftColor: "#ef4444" },
+
+  rejectedIcon: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: "rgba(239,68,68,0.1)",
+    justifyContent: "center", alignItems: "center",
+  },
+
+  // Empty state
+  emptyContainer: {
+    alignItems: "center", justifyContent: "center",
+    paddingVertical: 60, paddingHorizontal: 20,
+  },
+  emptyContainerMobile: { paddingVertical: 40 },
+  emptyIcon:    { fontSize: 64, marginBottom: 16, opacity: 0.7 },
+  emptyTitle:   { fontSize: 20, fontWeight: "600", color: "#333", marginBottom: 8, textAlign: "center" },
+  emptyMessage: { fontSize: 14, color: "rgba(0,0,0,0.5)", textAlign: "center", maxWidth: 300 },
+
+  // Pagination
+  pageRow: {
+    flexDirection: "row", justifyContent: "center", alignItems: "center",
+    gap: 16, marginTop: 16, flexWrap: "wrap", paddingHorizontal: 16,
+  },
+  pageBtn: {
+    paddingHorizontal: 20, paddingVertical: 8, borderRadius: 10,
+    backgroundColor: "#f59f0a", minWidth: 80, alignItems: "center",
+  },
+  pageBtnOff: { backgroundColor: "rgba(0,0,0,0.08)", opacity: 0.5 },
+  pageTxt:    { color: "#4b4a4a", fontWeight: "600", fontSize: 14 },
+  pageInfo:   { color: "#333", fontSize: 13 },
+
+  // Modal
+  overlay: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.75)",
+    justifyContent: "center", alignItems: "center", padding: 16,
+  },
+  card: {
+    backgroundColor: "#fff", borderRadius: 24, padding: 24,
+    width: "90%", maxWidth: 480,
+    borderWidth: 1, borderColor: "rgba(245,159,10,0.2)",
+  },
+  cardMobile: { padding: 16, width: "95%", maxHeight: "92%" },
+  modalTitle: {
+    fontSize: 20, fontWeight: "700", color: "#f59f0a",
+    textAlign: "center", marginBottom: 20,
+  },
+  infoRow: {
+    flexDirection: "row", justifyContent: "space-between",
+    paddingVertical: 8, borderBottomWidth: 1,
+    borderBottomColor: "rgba(0,0,0,0.08)",
+    flexWrap: "wrap", gap: 8,
+  },
+  infoLabel: { color: "rgba(0,0,0,0.6)", fontSize: 13, fontWeight: "600" },
+  infoValue: {
+    color: "#333", fontSize: 13, fontWeight: "500",
+    maxWidth: "60%", textAlign: "right", flex: 1,
+  },
+  remarkLabel: {
+    color: "#333", fontSize: 13, fontWeight: "600",
+    marginTop: 16, marginBottom: 8,
+  },
+  input: {
+    backgroundColor: "rgba(0,0,0,0.05)", borderRadius: 12, padding: 12,
+    color: "#333", fontSize: 14, minHeight: 80, textAlignVertical: "top",
+    borderWidth: 1, borderColor: "rgba(0,0,0,0.15)",
+  },
+  inputMobile: { minHeight: 70, fontSize: 13 },
+  btnRow: { flexDirection: "row", gap: 10, marginTop: 20, flexWrap: "wrap" },
+  btn: { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: "center", minWidth: 90 },
+  btnMobile: { paddingVertical: 10 },
+  btnTxt: { color: "#fff", fontSize: 14, fontWeight: "600" },
+};

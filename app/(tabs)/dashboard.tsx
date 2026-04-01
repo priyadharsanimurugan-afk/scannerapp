@@ -106,7 +106,7 @@ const ContactDetailModal = ({
     <Modal
       visible={visible}
       animationType="slide"
-    presentationStyle={isDesktop ? "formSheet" : "pageSheet"}
+      presentationStyle={isDesktop ? "formSheet" : "pageSheet"}
       transparent={isDesktop}
       onRequestClose={onClose}
     >
@@ -385,7 +385,7 @@ const ms = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f3f2f2",
     color: colors.text,
-     marginTop:60,
+    marginTop: 60,
   },
   topBar: {
     flexDirection: "row",
@@ -397,7 +397,6 @@ const ms = StyleSheet.create({
     backgroundColor: colors.navy,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "#E0E0E0",
-
   },
   topBarTitle: { fontSize: 16, fontWeight: "600", color: colors.white },
   iconBtn: {
@@ -458,7 +457,7 @@ const ms = StyleSheet.create({
   rowLabel: { fontSize: 11, color: "#999", fontWeight: "600", marginBottom: 1 },
   rowValue: { fontSize: 14, color: colors.text, fontWeight: "500" },
   timestamp: { textAlign: "center", fontSize: 11, color: "#AAA", paddingVertical: 12 },
-  
+
   // Desktop modal styles
   modalOverlay: {
     flex: 1,
@@ -669,6 +668,203 @@ const ContactCard = ({
   );
 };
 
+// ─── Shared scrollable body (used by both mobile and tablet) ──────────────────
+
+const ScrollableBody = ({
+  summary,
+  recentContacts,
+  loading,
+  error,
+  fetchDashboard,
+  profile,
+  isAdmin,
+  isTablet,
+  onContactPress,
+  onScanPress,
+  onContactsPress,
+  onSettingsPress,
+  onUsersPress,
+  onScannedPress,
+  onSharePress,
+}: any) => (
+  <ScrollView
+    style={{ flex: 1, backgroundColor: colors.phoneBg }}
+    showsVerticalScrollIndicator={false}
+    refreshControl={
+      <RefreshControl
+        refreshing={loading}
+        onRefresh={fetchDashboard}
+        colors={[colors.amber]}
+        tintColor={colors.amber}
+      />
+    }
+    contentContainerStyle={{
+      paddingBottom: 40,
+      backgroundColor: colors.phoneBg,
+      flexGrow: 1,
+    }}
+  >
+    <View style={[
+      isTablet && {
+        maxWidth: 768,
+        width: "100%",
+        alignSelf: "center",
+        paddingHorizontal: 16,
+      }
+    ]}>
+      {/* ── Scan CTA ── */}
+      <TouchableOpacity
+        style={dashboardStyles.scanCta}
+        activeOpacity={0.85}
+        onPress={onScanPress}
+      >
+        <View style={dashboardStyles.ctaIcon}>
+          <Icon name="camera" size={22} color={colors.white} />
+        </View>
+        <View style={dashboardStyles.ctaText}>
+          <Text style={dashboardStyles.ctaTitle}>Scan Business Card</Text>
+          <Text style={dashboardStyles.ctaSub}>
+            {summary?.remainingScans
+              ? `${summary.remainingScans} scans remaining`
+              : profile?.remainingScans
+              ? `${profile.remainingScans} scans remaining`
+              : "Extract contact info in seconds"}
+          </Text>
+        </View>
+        <Icon name="chevron-forward" size={16} color="rgba(255,255,255,0.8)" />
+      </TouchableOpacity>
+
+      {/* ── Stats Grid ── */}
+      <View style={dashboardStyles.statsGrid}>
+        <TouchableOpacity style={dashboardStyles.statCard} activeOpacity={0.8} onPress={onContactsPress}>
+          <View style={dashboardStyles.statBar} />
+          <View style={dashboardStyles.statIcon}>
+            <Icon name="people" size={13} color={colors.amberDark} />
+          </View>
+          <Text style={dashboardStyles.statValue}>{summary?.totalContactsCount ?? 0}</Text>
+          <Text style={dashboardStyles.statLabel}>Contacts</Text>
+          <View style={dashboardStyles.statBadge}>
+            <Icon name="people-outline" size={7} color={colors.partner} />
+            <Text style={dashboardStyles.statBadgeText}>All</Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={dashboardStyles.statCard} activeOpacity={0.8} onPress={onScannedPress}>
+          <View style={dashboardStyles.statBar} />
+          <View style={dashboardStyles.statIcon}>
+            <Icon name="scan" size={13} color={colors.amberDark} />
+          </View>
+          <Text style={dashboardStyles.statValue}>
+            {summary?.totalScansUsed ?? profile?.totalScansUsed ?? 0}
+          </Text>
+          <Text style={dashboardStyles.statLabel}>Scanned</Text>
+          <View style={dashboardStyles.statBadge}>
+            <Icon name="scan-outline" size={7} color={colors.partner} />
+            <Text style={dashboardStyles.statBadgeText}>Used</Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={dashboardStyles.statCard} activeOpacity={0.8}>
+          <View style={dashboardStyles.statBar} />
+          <View style={dashboardStyles.statIcon}>
+            <Icon name="download" size={13} color={colors.amberDark} />
+          </View>
+          <Text style={dashboardStyles.statValue}>{summary?.totalExportsCount ?? 0}</Text>
+          <Text style={dashboardStyles.statLabel}>Exports</Text>
+          <View style={dashboardStyles.statBadge}>
+            <Icon name="download-outline" size={7} color={colors.partner} />
+            <Text style={dashboardStyles.statBadgeText}>All</Text>
+          </View>
+        </TouchableOpacity>
+      </View>
+
+      {/* ── Quick Actions ── */}
+      <View style={dashboardStyles.sectionHead}>
+        <Text style={dashboardStyles.sectionTitle}>Quick Actions</Text>
+      </View>
+      <View style={dashboardStyles.quickRow}>
+        <TouchableOpacity style={dashboardStyles.quickBtn} onPress={onScanPress} activeOpacity={0.8}>
+          <View style={dashboardStyles.quickIcon}>
+            <Icon name="camera" size={14} color={colors.amberDark} />
+          </View>
+          <Text style={dashboardStyles.quickLabel}>Scan Card</Text>
+        </TouchableOpacity>
+
+        {isAdmin ? (
+          <TouchableOpacity style={dashboardStyles.quickBtn} onPress={onUsersPress} activeOpacity={0.8}>
+            <View style={dashboardStyles.quickIcon}>
+              <Icon name="people-outline" size={14} color={colors.amberDark} />
+            </View>
+            <Text style={dashboardStyles.quickLabel}>Users</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity style={dashboardStyles.quickBtn} onPress={onSharePress} activeOpacity={0.8}>
+            <View style={dashboardStyles.quickIcon}>
+              <Icon name="share-social" size={14} color={colors.amberDark} />
+            </View>
+            <Text style={dashboardStyles.quickLabel}>Share</Text>
+          </TouchableOpacity>
+        )}
+
+        <TouchableOpacity style={dashboardStyles.quickBtn} onPress={onContactsPress} activeOpacity={0.8}>
+          <View style={dashboardStyles.quickIcon}>
+            <Icon name="call-outline" size={14} color={colors.amberDark} />
+          </View>
+          <Text style={dashboardStyles.quickLabel}>Contacts</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={dashboardStyles.quickBtn} onPress={onSettingsPress} activeOpacity={0.8}>
+          <View style={dashboardStyles.quickIcon}>
+            <Icon name="cog-outline" size={14} color={colors.amberDark} />
+          </View>
+          <Text style={dashboardStyles.quickLabel}>Settings</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* ── Recent Contacts ── */}
+      <View style={dashboardStyles.sectionHead}>
+        <Text style={dashboardStyles.sectionTitle}>Recent Contacts</Text>
+        <TouchableOpacity onPress={onContactsPress}>
+          <Text style={dashboardStyles.sectionLink}>View all →</Text>
+        </TouchableOpacity>
+      </View>
+
+      {error ? (
+        <View style={dashboardStyles.emptyState}>
+          <Icon name="alert-circle-outline" size={36} color={colors.error} />
+          <Text style={{ color: colors.error, textAlign: "center", marginTop: 8, fontSize: 13 }}>
+            {error}
+          </Text>
+          <TouchableOpacity onPress={fetchDashboard} style={dashboardStyles.emptyStateBtn}>
+            <Text style={{ color: colors.white, fontWeight: "700" }}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : recentContacts.length === 0 ? (
+        <View style={dashboardStyles.emptyState}>
+          <Icon name="people-outline" size={40} color={colors.muted} />
+          <Text style={dashboardStyles.emptyStateTitle}>No contacts yet</Text>
+          <Text style={dashboardStyles.emptyStateSubtitle}>
+            Scan a business card to get started
+          </Text>
+          <TouchableOpacity style={dashboardStyles.emptyStateBtn} onPress={onScanPress}>
+            <Text style={{ color: colors.white, fontWeight: "700", fontSize: 13 }}>Scan Now</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={dashboardStyles.contactList}>
+          {recentContacts.map((contact: any, index: number) => (
+            <ContactCard
+              key={`contact-${index}`}
+              contact={contact}
+              onPress={onContactPress}
+            />
+          ))}
+        </View>
+      )}
+    </View>
+  </ScrollView>
+);
+
 // ─── Dashboard Content Component ──────────────────────────────────────────────
 
 const DashboardContent = ({
@@ -717,13 +913,11 @@ const DashboardContent = ({
     return "Good evening";
   };
 
- 
-
-  // For desktop, we separate header and scrollable content
+  // ── DESKTOP: fixed header + scrollable body ──
   if (isDesktop) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.phoneBg }}>
-        {/* Fixed Header - Desktop Only */}
+        {/* Fixed Header - Desktop */}
         <View style={dashboardStyles.desktopHeroSmall}>
           <View style={dashboardStyles.desktopHeroContentSmall}>
             <View>
@@ -762,7 +956,6 @@ const DashboardContent = ({
             flexGrow: 1,
           }}
         >
-          {/* Content Container with max-width constraint for desktop */}
           <View style={{
             maxWidth: 1200,
             width: "100%",
@@ -923,44 +1116,20 @@ const DashboardContent = ({
       </View>
     );
   }
-if (loading && !summary) {
+
+  if (loading && !summary) {
+    return (
+      <View style={dashboardStyles.loadingContainer}>
+        <ActivityIndicator size="large" color={colors.amber} />
+      </View>
+    );
+  }
+
+  // ── MOBILE / TABLET: fixed header + scrollable body ──
   return (
-    <View style={dashboardStyles.loadingContainer}>
-      <ActivityIndicator size="large" color={colors.amber} />
-    </View>
-  );
-}
-  // Mobile/Tablet layout (scrolls everything)
-  return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: colors.phoneBg }}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl
-          refreshing={loading}
-          onRefresh={fetchDashboard}
-          colors={[colors.amber]}
-          tintColor={colors.amber}
-        />
-      }
-      contentContainerStyle={[
-        {
-          paddingBottom: 40,
-          backgroundColor: colors.phoneBg,
-          flexGrow: 1,
-        },
-      ]}
-    >
-      {/* Content Container with max-width constraint for tablet */}
-      <View style={[
-        (isTablet) && {
-          maxWidth: 768,
-          width: "100%",
-          alignSelf: "center",
-          paddingHorizontal: 16,
-        }
-      ]}>
-        {/* Mobile Header */}
+    <View style={{ flex: 1, backgroundColor: colors.phoneBg }}>
+      {/* Fixed Header — never scrolls */}
+      <View style={{ zIndex: 10 }}>
         <View style={dashboardStyles.header}>
           <View style={dashboardStyles.headerGlow1} />
           <View style={dashboardStyles.headerGlow2} />
@@ -984,158 +1153,27 @@ if (loading && !summary) {
             </TouchableOpacity>
           </View>
         </View>
-
-        {/* ── Scan CTA ── */}
-        <TouchableOpacity
-          style={dashboardStyles.scanCta}
-          activeOpacity={0.85}
-          onPress={onScanPress}
-        >
-          <View style={dashboardStyles.ctaIcon}>
-            <Icon name="camera" size={22} color={colors.white} />
-          </View>
-          <View style={dashboardStyles.ctaText}>
-            <Text style={dashboardStyles.ctaTitle}>Scan Business Card</Text>
-            <Text style={dashboardStyles.ctaSub}>
-              {summary?.remainingScans
-                ? `${summary.remainingScans} scans remaining`
-                : profile?.remainingScans
-                ? `${profile.remainingScans} scans remaining`
-                : "Extract contact info in seconds"}
-            </Text>
-          </View>
-          <Icon name="chevron-forward" size={16} color="rgba(255,255,255,0.8)" />
-        </TouchableOpacity>
-
-        {/* ── Stats Grid ── */}
-        <View style={dashboardStyles.statsGrid}>
-          <TouchableOpacity style={dashboardStyles.statCard} activeOpacity={0.8} onPress={onContactsPress}>
-            <View style={dashboardStyles.statBar} />
-            <View style={dashboardStyles.statIcon}>
-              <Icon name="people" size={13} color={colors.amberDark} />
-            </View>
-            <Text style={dashboardStyles.statValue}>{summary?.totalContactsCount ?? 0}</Text>
-            <Text style={dashboardStyles.statLabel}>Contacts</Text>
-            <View style={dashboardStyles.statBadge}>
-              <Icon name="people-outline" size={7} color={colors.partner} />
-              <Text style={dashboardStyles.statBadgeText}>All</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={dashboardStyles.statCard} activeOpacity={0.8} onPress={onScannedPress}>
-            <View style={dashboardStyles.statBar} />
-            <View style={dashboardStyles.statIcon}>
-              <Icon name="scan" size={13} color={colors.amberDark} />
-            </View>
-            <Text style={dashboardStyles.statValue}>
-              {summary?.totalScansUsed ?? profile?.totalScansUsed ?? 0}
-            </Text>
-            <Text style={dashboardStyles.statLabel}>Scanned</Text>
-            <View style={dashboardStyles.statBadge}>
-              <Icon name="scan-outline" size={7} color={colors.partner} />
-              <Text style={dashboardStyles.statBadgeText}>Used</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={dashboardStyles.statCard} activeOpacity={0.8}>
-            <View style={dashboardStyles.statBar} />
-            <View style={dashboardStyles.statIcon}>
-              <Icon name="download" size={13} color={colors.amberDark} />
-            </View>
-            <Text style={dashboardStyles.statValue}>{summary?.totalExportsCount ?? 0}</Text>
-            <Text style={dashboardStyles.statLabel}>Exports</Text>
-            <View style={dashboardStyles.statBadge}>
-              <Icon name="download-outline" size={7} color={colors.partner} />
-              <Text style={dashboardStyles.statBadgeText}>All</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* ── Quick Actions ── */}
-        <View style={dashboardStyles.sectionHead}>
-          <Text style={dashboardStyles.sectionTitle}>Quick Actions</Text>
-        </View>
-        <View style={dashboardStyles.quickRow}>
-          <TouchableOpacity style={dashboardStyles.quickBtn} onPress={onScanPress} activeOpacity={0.8}>
-            <View style={dashboardStyles.quickIcon}>
-              <Icon name="camera" size={14} color={colors.amberDark} />
-            </View>
-            <Text style={dashboardStyles.quickLabel}>Scan Card</Text>
-          </TouchableOpacity>
-
-          {isAdmin ? (
-            <TouchableOpacity style={dashboardStyles.quickBtn} onPress={onUsersPress} activeOpacity={0.8}>
-              <View style={dashboardStyles.quickIcon}>
-                <Icon name="people-outline" size={14} color={colors.amberDark} />
-              </View>
-              <Text style={dashboardStyles.quickLabel}>Users</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity style={dashboardStyles.quickBtn} onPress={onSharePress} activeOpacity={0.8}>
-              <View style={dashboardStyles.quickIcon}>
-                <Icon name="share-social" size={14} color={colors.amberDark} />
-              </View>
-              <Text style={dashboardStyles.quickLabel}>Share</Text>
-            </TouchableOpacity>
-          )}
-
-          <TouchableOpacity style={dashboardStyles.quickBtn} onPress={onContactsPress} activeOpacity={0.8}>
-            <View style={dashboardStyles.quickIcon}>
-              <Icon name="call-outline" size={14} color={colors.amberDark} />
-            </View>
-            <Text style={dashboardStyles.quickLabel}>Contacts</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={dashboardStyles.quickBtn} onPress={onSettingsPress} activeOpacity={0.8}>
-            <View style={dashboardStyles.quickIcon}>
-              <Icon name="cog-outline" size={14} color={colors.amberDark} />
-            </View>
-            <Text style={dashboardStyles.quickLabel}>Settings</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* ── Recent Contacts ── */}
-        <View style={dashboardStyles.sectionHead}>
-          <Text style={dashboardStyles.sectionTitle}>Recent Contacts</Text>
-          <TouchableOpacity onPress={onContactsPress}>
-            <Text style={dashboardStyles.sectionLink}>View all →</Text>
-          </TouchableOpacity>
-        </View>
-
-        {error ? (
-          <View style={dashboardStyles.emptyState}>
-            <Icon name="alert-circle-outline" size={36} color={colors.error} />
-            <Text style={{ color: colors.error, textAlign: "center", marginTop: 8, fontSize: 13 }}>
-              {error}
-            </Text>
-            <TouchableOpacity onPress={fetchDashboard} style={dashboardStyles.emptyStateBtn}>
-              <Text style={{ color: colors.white, fontWeight: "700" }}>Retry</Text>
-            </TouchableOpacity>
-          </View>
-        ) : recentContacts.length === 0 ? (
-          <View style={dashboardStyles.emptyState}>
-            <Icon name="people-outline" size={40} color={colors.muted} />
-            <Text style={dashboardStyles.emptyStateTitle}>No contacts yet</Text>
-            <Text style={dashboardStyles.emptyStateSubtitle}>
-              Scan a business card to get started
-            </Text>
-            <TouchableOpacity style={dashboardStyles.emptyStateBtn} onPress={onScanPress}>
-              <Text style={{ color: colors.white, fontWeight: "700", fontSize: 13 }}>Scan Now</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={dashboardStyles.contactList}>
-            {recentContacts.map((contact, index) => (
-              <ContactCard
-                key={`contact-${index}`}
-                contact={contact}
-                onPress={onContactPress}
-              />
-            ))}
-          </View>
-        )}
       </View>
-    </ScrollView>
+
+      {/* Scrollable body — only content scrolls */}
+      <ScrollableBody
+        summary={summary}
+        recentContacts={recentContacts}
+        loading={loading}
+        error={error}
+        fetchDashboard={fetchDashboard}
+        profile={profile}
+        isAdmin={isAdmin}
+        isTablet={isTablet}
+        onContactPress={onContactPress}
+        onScanPress={onScanPress}
+        onContactsPress={onContactsPress}
+        onSettingsPress={onSettingsPress}
+        onUsersPress={onUsersPress}
+        onScannedPress={onScannedPress}
+        onSharePress={onSharePress}
+      />
+    </View>
   );
 };
 
@@ -1148,7 +1186,7 @@ export default function DashboardScreen() {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 1024;
   const isMobile = width < 768;
-  
+
   const [selectedContact, setSelectedContact] = useState<any>(null);
   const [detailVisible, setDetailVisible] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -1156,7 +1194,8 @@ export default function DashboardScreen() {
   useFocusEffect(
     useCallback(() => { fetchDashboard(); }, [])
   );
- const [roles, setRoles] = useState<string[] | null>(null);
+
+  const [roles, setRoles] = useState<string[] | null>(null);
 
   useEffect(() => {
     const loadRoles = async () => {
@@ -1165,6 +1204,7 @@ export default function DashboardScreen() {
     };
     loadRoles();
   }, []);
+
   useEffect(() => {
     const checkRole = async () => {
       const roles = await getRoles();
@@ -1179,17 +1219,13 @@ export default function DashboardScreen() {
   };
 
   const handleScanPress = () => {
-    // Check if device is desktop or tablet (non-mobile)
     if (!isMobile) {
       Toast.info("Scanning is only available on mobile devices. Please open this app on your phone to use the camera.");
       return;
     }
     router.push("/scan");
   };
-  
-  // app/dashboard/index.tsx - Updated handleContactsPress
 
-  // Fixed: Use the isDesktop variable already declared at component level
   const handleContactsPress = () => {
     if (isDesktop) {
       router.push("/contacts-web");
@@ -1197,15 +1233,17 @@ export default function DashboardScreen() {
       router.push("/contacts");
     }
   };
+
   const handleSettingsPress = () => router.push("/settings");
   const handleUsersPress = () => router.push("/users");
   const handleScannedPress = () => {
-      if (isDesktop) {
+    if (isDesktop) {
       router.push("/contacts-web");
     } else {
       router.push("/contacts");
     }
   };
+
   const handleSharePress = async () => {
     const totalContacts = summary?.totalContactsCount ?? 0;
     const scansUsed = summary?.totalScansUsed ?? profile?.totalScansUsed ?? 0;
@@ -1221,8 +1259,6 @@ export default function DashboardScreen() {
     } catch (e) { console.error(e); }
   };
 
-
-  // Get user details for sidebar
   const getUserFullName = () => profile?.userName || "User";
   const getUserInitials = () => profile?.userName ? getInitials(profile.userName) : "U";
   const getUserAvatarColor = () => profile?.userName ? getAvatarColor(profile.userName) : colors.amber;
@@ -1233,10 +1269,10 @@ export default function DashboardScreen() {
       userInitials={getUserInitials()}
       userAvatarColor={getUserAvatarColor()}
       userName={getUserFullName()}
-       userRole={roles?.[0]}
+      userRole={roles?.[0]}
     >
       <StatusBar barStyle="light-content" backgroundColor={colors.navy} />
-      
+
       <DashboardContent
         summary={summary}
         recentContacts={recentContacts}

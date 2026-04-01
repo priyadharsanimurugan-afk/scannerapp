@@ -7,7 +7,10 @@ export interface AllUser {
   
 }
 
-   export interface PremiumRequest {
+export interface PremiumRequest {
+  accountType: string;
+  email: string;
+  userName: string;
   id: number;
   message: string;
   paymentReference: string;

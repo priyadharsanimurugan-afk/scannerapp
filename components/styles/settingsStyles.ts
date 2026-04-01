@@ -98,8 +98,8 @@ errorText: {
     position: 'relative',
   },
   avatar: {
-    width:          68,
-    height:         68,
+    width:          58,
+    height:         58,
     backgroundColor: colors.amber,
     borderRadius:   34,
     justifyContent: 'center',

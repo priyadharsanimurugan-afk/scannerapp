@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import {
   ScrollView,
   Text,
@@ -14,7 +14,7 @@ import {
 import { colors } from "@/constants/colors";
 import { useMenuVisibility } from "@/context/MenuVisibilityContext";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 
 export default function PrivacyPolicyScreen() {
   const { setMenuVisible } = useMenuVisibility();
@@ -27,14 +27,27 @@ export default function PrivacyPolicyScreen() {
   const isDesktop = width >= 1024;
   const isWeb = Platform.OS === "web";
 
-  useEffect(() => {
-    setMenuVisible(false);
-    Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
-      Animated.timing(slideAnim, { toValue: 0, duration: 500, useNativeDriver: true }),
-    ]).start();
-    return () => setMenuVisible(true);
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      setMenuVisible(false);
+
+      fadeAnim.setValue(0);
+      slideAnim.setValue(24);
+
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }, [])
+  );
 
   useEffect(() => {
     if (!isWeb || typeof document === "undefined") return;

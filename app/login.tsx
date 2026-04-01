@@ -1,5 +1,5 @@
 // LoginScreen.tsx
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ScrollView,
   View,
@@ -22,7 +22,7 @@ import {
   saveRememberedCredentials,
   clearRememberedCredentials,
 } from "@/utils/tokenStorage";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 
 const LoginScreen = () => {
   const { width } = useWindowDimensions();
@@ -148,12 +148,15 @@ const LoginScreen = () => {
   }, [activeTab]);
 
   // ─── Hide bottom menu on this screen ─────────────────────────────────────
-  useEffect(() => {
+useFocusEffect(
+  useCallback(() => {
     setMenuVisible(false);
+
     return () => {
       setMenuVisible(true);
     };
-  }, [setMenuVisible]);
+  }, [])
+);
 
   // ─── Remember Me handler ──────────────────────────────────────────────────
   const handleRememberMe = async (checked: boolean) => {

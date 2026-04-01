@@ -153,7 +153,8 @@ const handleShareContact = async (contact: ContactDetail) => {
   }
 };
 
-// ─── Image Viewer Component with Swipe Support & Rotation ──
+// ─── Image Viewer Component with Swipe Support & Rotation ──────────────────
+
 const ContactImageViewer = ({
   visible,
   images,
@@ -312,7 +313,7 @@ const ivs = StyleSheet.create({
   },
 });
 
-// ─── Edit Field with Error Support ──────────────────────────────────────────────
+// ─── Edit Field with Error Support ──────────────────────────────────────────
 
 type EditForm = {
   personName: string;
@@ -335,7 +336,6 @@ type EditForm = {
   gstNumber: string;
 };
 
-// Normalize PascalCase backend key → camelCase
 const normKey = (key: string) => key.charAt(0).toLowerCase() + key.slice(1);
 
 const extractFieldErrors = (error: any): Record<string, string> => {
@@ -410,7 +410,8 @@ const esS = StyleSheet.create({
   sectionHead:      { fontSize: 11, fontWeight: '700', color: colors.amber, marginTop: 20, marginBottom: 4, paddingHorizontal: 16, letterSpacing: 1, textTransform: 'uppercase' },
 });
 
-// ─── Edit Sheet with Error Handling ──────────────────────────────────────────────
+// ─── Edit Sheet ──────────────────────────────────────────────────────────────
+
 const EditSheet = ({
   visible,
   contact,
@@ -464,7 +465,6 @@ const EditSheet = ({
   const sf = useCallback(
     (key: keyof EditForm) => (val: string) => {
       setForm((f) => ({ ...f, [key]: val }));
-      // Clear error for this field as user types
       setFieldErrors((prev) => {
         if (!prev[key]) return prev;
         const next = { ...prev };
@@ -479,20 +479,20 @@ const EditSheet = ({
     setFieldErrors({});
     try {
       await onSave(form);
-      // onSave closes the dialog on success
     } catch (error: any) {
       const errors = extractFieldErrors(error);
       setFieldErrors(errors);
-      // No alert - errors shown inline on fields
     }
   };
 
+  const validateEmailFormat = (email: string) => {
+    const emailRegex = /^[^\s@]+@([^\s@]+\.)+[^\s@]+$/;
+    if (!email) return undefined;
+    return emailRegex.test(email) ? undefined : 'Invalid email format';
+  };
+
   const SH = (t: string) => <Text style={esS.sectionHead}>{t}</Text>;
-const validateEmailFormat = (email: string) => {
-  const emailRegex = /^[^\s@]+@([^\s@]+\.)+[^\s@]+$/;
-  if (!email) return undefined;
-  return emailRegex.test(email) ? undefined : 'Invalid email format';
-};
+
   return (
     <Modal
       visible={visible}
@@ -526,141 +526,137 @@ const validateEmailFormat = (email: string) => {
               automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
             >
               {SH('Personal')}
-              <EditField 
-                label="Full Name"   
-                value={form.personName}  
-                onChange={sf('personName')}  
+              <EditField
+                label="Full Name"
+                value={form.personName}
+                onChange={sf('personName')}
                 error={fieldErrors.personName}
               />
-              <EditField 
-                label="Designation" 
-                value={form.designation} 
-                onChange={sf('designation')} 
+              <EditField
+                label="Designation"
+                value={form.designation}
+                onChange={sf('designation')}
                 error={fieldErrors.designation}
               />
 
               {SH('Company')}
-              <EditField 
-                label="Company Name" 
-                value={form.companyName}    
-                onChange={sf('companyName')} 
+              <EditField
+                label="Company Name"
+                value={form.companyName}
+                onChange={sf('companyName')}
                 error={fieldErrors.companyName}
               />
-              <EditField 
-                label="Sub Company"  
-                value={form.subCompanyName} 
-                onChange={sf('subCompanyName')} 
+              <EditField
+                label="Sub Company"
+                value={form.subCompanyName}
+                onChange={sf('subCompanyName')}
                 error={fieldErrors.subCompanyName}
               />
-              <EditField 
-                label="Branch"       
-                value={form.branchName}     
-                onChange={sf('branchName')} 
+              <EditField
+                label="Branch"
+                value={form.branchName}
+                onChange={sf('branchName')}
                 error={fieldErrors.branchName}
               />
 
               {SH('Phone Numbers')}
-              <EditField 
-                label="Phone 1" 
-                value={form.phoneNumber1} 
-                // onChange={sf('phoneNumber1')} 
-                 onChange={(text) => {
-                // Allow only numbers and limit to 12 characters
-                const cleaned = text.replace(/[^0-9]/g, '').slice(0, 12);
-                sf('phoneNumber1')(cleaned);
-              }}
-                keyboardType="phone-pad" 
+              <EditField
+                label="Phone 1"
+                value={form.phoneNumber1}
+                onChange={(text) => {
+                  const cleaned = text.replace(/[^0-9]/g, '').slice(0, 12);
+                  sf('phoneNumber1')(cleaned);
+                }}
+                keyboardType="phone-pad"
                 error={fieldErrors.phoneNumber1}
               />
-              <EditField 
-                label="Phone 2" 
-                value={form.phoneNumber2} 
-                   onChange={(text) => {
-                // Allow only numbers and limit to 12 characters
-                const cleaned = text.replace(/[^0-9]/g, '').slice(0, 12);
-                sf('phoneNumber2')(cleaned);
-              }}
-                keyboardType="phone-pad" 
+              <EditField
+                label="Phone 2"
+                value={form.phoneNumber2}
+                onChange={(text) => {
+                  const cleaned = text.replace(/[^0-9]/g, '').slice(0, 12);
+                  sf('phoneNumber2')(cleaned);
+                }}
+                keyboardType="phone-pad"
                 error={fieldErrors.phoneNumber2}
               />
-              <EditField 
-                label="Phone 3" 
-                value={form.phoneNumber3} 
-                  onChange={(text) => {
-                // Allow only numbers and limit to 12 characters
-                const cleaned = text.replace(/[^0-9]/g, '').slice(0, 12);
-                sf('phoneNumber3')(cleaned);
-              }}
-                keyboardType="phone-pad" 
+              <EditField
+                label="Phone 3"
+                value={form.phoneNumber3}
+                onChange={(text) => {
+                  const cleaned = text.replace(/[^0-9]/g, '').slice(0, 12);
+                  sf('phoneNumber3')(cleaned);
+                }}
+                keyboardType="phone-pad"
                 error={fieldErrors.phoneNumber3}
               />
 
               {SH('Email')}
-              <EditField 
-                label="Email 1" 
-                value={form.email1} 
-                onChange={sf('email1')} 
-                keyboardType="email-address" 
-                 error={fieldErrors.email1 || validateEmailFormat(form.email1)} 
+              <EditField
+                label="Email 1"
+                value={form.email1}
+                onChange={sf('email1')}
+                keyboardType="email-address"
+                error={fieldErrors.email1 || validateEmailFormat(form.email1)}
               />
-              <EditField 
-                label="Email 2" 
-                value={form.email2} 
-                onChange={sf('email2')} 
-                keyboardType="email-address" 
-                 error={fieldErrors.email1 || validateEmailFormat(form.email1)} 
+              <EditField
+                label="Email 2"
+                value={form.email2}
+                onChange={sf('email2')}
+                keyboardType="email-address"
+                error={fieldErrors.email2 || validateEmailFormat(form.email2)}
               />
 
               {SH('Online Presence')}
-              <EditField 
-                label="Website 1"      
-                value={form.website1}     
-                onChange={sf('website1')}     
-                keyboardType="url" 
+              <EditField
+                label="Website 1"
+                value={form.website1}
+                onChange={sf('website1')}
+                keyboardType="url"
                 error={fieldErrors.website1}
               />
-              <EditField 
-                label="Website 2"      
-                value={form.website2}     
-                onChange={sf('website2')}     
-                keyboardType="url" 
+              <EditField
+                label="Website 2"
+                value={form.website2}
+                onChange={sf('website2')}
+                keyboardType="url"
                 error={fieldErrors.website2}
               />
-              <EditField 
-                label="QR Code / Link" 
-                value={form.qrCodeDetail} 
-                onChange={sf('qrCodeDetail')} 
-                keyboardType="url" 
+              <EditField
+                label="QR Code / Link"
+                value={form.qrCodeDetail}
+                onChange={sf('qrCodeDetail')}
+                keyboardType="url"
                 error={fieldErrors.qrCodeDetail}
               />
 
               {SH('Business Info')}
-              <EditField 
-                label="GST Number"  
-                value={form.gstNumber}   
-                onChange={sf('gstNumber')} 
+              <EditField
+                label="GST Number"
+                value={form.gstNumber}
+                onChange={sf('gstNumber')}
                 error={fieldErrors.gstNumber}
               />
-              <EditField 
-                label="Partnership" 
-                value={form.partnership} 
-                onChange={sf('partnership')} 
+              <EditField
+                label="Partnership"
+                value={form.partnership}
+                onChange={sf('partnership')}
                 error={fieldErrors.partnership}
               />
 
               {SH('Address & Services')}
-              <EditField 
-                label="Address"                    
-                value={form.address}     
-                onChange={sf('address')}     
-                multiline 
+              <EditField
+                label="Address"
+                value={form.address}
+                onChange={sf('address')}
+                multiline
                 error={fieldErrors.address}
               />
-              <EditField 
-                label="Services (comma separated)" 
-                value={form.servicesCsv} 
-                onChange={sf('servicesCsv')} 
-                multiline 
+              <EditField
+                label="Services (comma separated)"
+                value={form.servicesCsv}
+                onChange={sf('servicesCsv')}
+                multiline
                 error={fieldErrors.servicesCsv}
               />
 
@@ -827,15 +823,15 @@ const ContactDetailModal = ({
   const tagStyle   = getTagStyle(tag);
   const frontUri   = buildImageUri(contact.frontImage, contact.frontImageMimeType);
   const backUri    = buildImageUri(contact.backImage, contact.backImageMimeType);
-  
+
   const cardImages: { url: any; label: any; }[] = [];
   if (frontUri) cardImages.push({ url: frontUri, label: 'Front Side' });
   if (backUri) cardImages.push({ url: backUri, label: 'Back Side' });
-  
-  const phones     = [contact.phoneNumber1, contact.phoneNumber2, contact.phoneNumber3].filter(Boolean) as string[];
-  const emails     = [contact.email1, contact.email2].filter(Boolean) as string[];
-  const websites   = [contact.website1, contact.website2].filter(Boolean) as string[];
-  const services   = contact.servicesCsv
+
+  const phones   = [contact.phoneNumber1, contact.phoneNumber2, contact.phoneNumber3].filter(Boolean) as string[];
+  const emails   = [contact.email1, contact.email2].filter(Boolean) as string[];
+  const websites = [contact.website1, contact.website2].filter(Boolean) as string[];
+  const services = contact.servicesCsv
     ? contact.servicesCsv.split(',').map((s) => s.trim()).filter(Boolean)
     : [];
 
@@ -854,10 +850,7 @@ const ContactDetailModal = ({
   };
 
   const handleImagePress = (index: number) => {
-    setViewingImages({
-      images: cardImages,
-      initialIndex: index,
-    });
+    setViewingImages({ images: cardImages, initialIndex: index });
   };
 
   return (
@@ -1199,10 +1192,10 @@ export default function ContactsScreen() {
     );
   });
 
-  const indexOfLastContact = currentPage * CONTACTS_PER_PAGE;
+  const indexOfLastContact  = currentPage * CONTACTS_PER_PAGE;
   const indexOfFirstContact = indexOfLastContact - CONTACTS_PER_PAGE;
-  const currentContacts = filteredContacts.slice(indexOfFirstContact, indexOfLastContact);
-  const totalPages = Math.ceil(filteredContacts.length / CONTACTS_PER_PAGE);
+  const currentContacts     = filteredContacts.slice(indexOfFirstContact, indexOfLastContact);
+  const totalPages          = Math.ceil(filteredContacts.length / CONTACTS_PER_PAGE);
 
   useFocusEffect(
     useCallback(() => {
@@ -1270,8 +1263,8 @@ export default function ContactsScreen() {
         ...form,
         frontImageAsString: editContact.frontImage || '',
         frontImageMimeType: editContact.frontImageMimeType || '',
-        backImageAsString: editContact.backImage || '',
-        backImageMimeType: editContact.backImageMimeType || '',
+        backImageAsString:  editContact.backImage || '',
+        backImageMimeType:  editContact.backImageMimeType || '',
       };
       await updateContactHook(editContact.id, updateData);
       await fetchContacts();
@@ -1298,15 +1291,11 @@ export default function ContactsScreen() {
   };
 
   const nextPage = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1);
-    }
+    if (currentPage < totalPages) setCurrentPage(currentPage + 1);
   };
 
   const prevPage = () => {
-    if (currentPage > 1) {
-      setCurrentPage(currentPage - 1);
-    }
+    if (currentPage > 1) setCurrentPage(currentPage - 1);
   };
 
   if (loading && !refreshing && contacts.length === 0) {
@@ -1319,23 +1308,11 @@ export default function ContactsScreen() {
   }
 
   return (
-    <View style={contactsStyles.container}>
+    <View style={[contactsStyles.container, { flex: 1 }]}>
       <StatusBar barStyle="light-content" backgroundColor={colors.navy} />
 
-      <ScrollView
-        style={contactsStyles.body}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[colors.amber]}
-            tintColor={colors.amber}
-          />
-        }
-        scrollEventThrottle={400}
-        contentContainerStyle={{ paddingBottom: 40, backgroundColor: colors.phoneBg, flexGrow: 1 }}
-      >
+      {/* ── FIXED HEADER — never scrolls ── */}
+      <View style={{ zIndex: 10 }}>
         <View style={contactsStyles.header}>
           <View style={contactsStyles.headerGlow} />
           <View style={contactsStyles.headerTop}>
@@ -1361,7 +1338,24 @@ export default function ContactsScreen() {
             </View>
           </View>
         </View>
+      </View>
 
+      {/* ── SCROLLABLE CONTENT — search bar + list ── */}
+      <ScrollView
+        style={[contactsStyles.body, { flex: 1 }]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.amber]}
+            tintColor={colors.amber}
+          />
+        }
+        scrollEventThrottle={400}
+        contentContainerStyle={{ paddingBottom: 40, backgroundColor: colors.phoneBg, flexGrow: 1 }}
+      >
+        {/* Search Bar */}
         <View style={contactsStyles.searchWrap}>
           <Icon name="search-outline" size={14} color={colors.muted} style={contactsStyles.searchIcon} />
           <TextInput
@@ -1378,6 +1372,7 @@ export default function ContactsScreen() {
           )}
         </View>
 
+        {/* Count Bar */}
         <View style={contactsStyles.countBar}>
           <Text style={contactsStyles.countText}>
             Showing{' '}
@@ -1390,6 +1385,7 @@ export default function ContactsScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Error State */}
         {error && (
           <View style={{ padding: 20, alignItems: 'center' }}>
             <Text style={{ color: colors.error, textAlign: 'center', marginBottom: 10 }}>
@@ -1404,6 +1400,7 @@ export default function ContactsScreen() {
           </View>
         )}
 
+        {/* Empty State */}
         {!error && filteredContacts.length === 0 && (
           <View style={{ padding: 40, alignItems: 'center', flex: 1 }}>
             <Icon name="people-outline" size={48} color={colors.muted} />
@@ -1415,6 +1412,7 @@ export default function ContactsScreen() {
           </View>
         )}
 
+        {/* Contact List + Pagination */}
         {!error && filteredContacts.length > 0 && (
           <>
             <View style={contactsStyles.contactList}>
@@ -1466,6 +1464,7 @@ export default function ContactsScreen() {
         )}
       </ScrollView>
 
+      {/* ── Modals — outside ScrollView ── */}
       <ContactDetailModal
         visible={detailVisible}
         contact={selectedContact}
@@ -1485,6 +1484,8 @@ export default function ContactsScreen() {
     </View>
   );
 }
+
+// ─── Pagination Styles ────────────────────────────────────────────────────────
 
 const paginationStyles = StyleSheet.create({
   container: {
