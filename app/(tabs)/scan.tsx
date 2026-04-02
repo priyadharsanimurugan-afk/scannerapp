@@ -199,7 +199,7 @@ const sendWhatsApp = async (card: ExtendedScannedCard, fields: FieldItem[]) => {
   const get = (t: string, i = 0) => fields.filter(f => f.type === t)[i]?.value || '';
   const phone = get('phone').replace(/\D/g, '');
   if (!phone) { Alert.alert('No Phone', 'Cannot open WhatsApp without a phone number.'); return; }
-  const msg = ['Hi 👋\n\nScanned via Scanify:\n', `👤 ${get('name')}`, `🏢 ${get('company')}`, `💼 ${get('designation')}`, `📧 ${get('email')}`, `🌐 ${get('website')}`, `📍 ${buildAddress(fields)}`, get('gst') ? `🧾 GST: ${get('gst')}` : ''].filter(Boolean).join('\n');
+  const msg = ['Hi 👋\n\nScanned via CardScan Pro:\n', `👤 ${get('name')}`, `🏢 ${get('company')}`, `💼 ${get('designation')}`, `📧 ${get('email')}`, `🌐 ${get('website')}`, `📍 ${buildAddress(fields)}`, get('gst') ? `🧾 GST: ${get('gst')}` : ''].filter(Boolean).join('\n');
   try { await Linking.openURL(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`); } catch { Alert.alert('WhatsApp not installed'); }
 };
 

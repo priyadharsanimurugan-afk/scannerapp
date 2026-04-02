@@ -25,6 +25,7 @@ import {
   NativeScrollEvent,
   NativeSyntheticEvent,
   SafeAreaView,
+  Keyboard,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useContact } from '@/hooks/useContact';
@@ -435,6 +436,7 @@ const EditSheet = ({
 
   const [form, setForm] = useState<EditForm>(blankForm);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [rawTextFocused, setRawTextFocused] = useState(false);
 
   useEffect(() => {
     if (contact) {
@@ -520,7 +522,7 @@ const EditSheet = ({
             </View>
             <ScrollView
               keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="none"
+                keyboardDismissMode="none"
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingBottom: 60 }}
               automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
@@ -660,16 +662,54 @@ const EditSheet = ({
                 error={fieldErrors.servicesCsv}
               />
 
-              {SH('Raw Extracted Text')}
-              <EditField
-                label="Raw Text"
-                value={form.rawExtractedText}
-                onChange={sf('rawExtractedText')}
-                multiline
-                placeholder="Full text extracted from the business card..."
-                error={fieldErrors.rawExtractedText}
-              />
-
+{SH('Raw Extracted Text')}
+<View style={{ paddingHorizontal: 16, marginBottom: rawTextFocused ? 190 : 12 }}>
+  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+    <Text style={esS.fieldLabel}>Raw Text</Text>
+    <TouchableOpacity
+      onPress={() => Keyboard.dismiss()}
+      style={{
+        flexDirection: 'row', alignItems: 'center', gap: 4,
+        backgroundColor: colors.amber, borderRadius: 8,
+        paddingHorizontal: 10, paddingVertical: 4,
+      }}
+    >
+      <Icon name="checkmark-done-outline" size={13} color={colors.navy} />
+      <Text style={{ fontSize: 12, fontWeight: '700', color: colors.navy }}>Done</Text>
+    </TouchableOpacity>
+  </View>
+  <TextInput
+    style={[
+      contactsStyles.editFieldInput,
+      { height: 120, textAlignVertical: 'top', paddingTop: 10 },
+      fieldErrors.rawExtractedText && {
+        borderWidth: 1.5,
+        borderColor: colors.error,
+        backgroundColor: 'rgba(239,68,68,0.04)',
+      },
+    ]}
+    value={form.rawExtractedText}
+    onChangeText={sf('rawExtractedText')}
+    placeholder="Full text extracted from the business card..."
+    placeholderTextColor={colors.inputPlaceholder}
+    multiline
+    scrollEnabled={true}
+    blurOnSubmit={false}
+    returnKeyType="default"
+    autoCorrect={false}
+    autoCapitalize="none"
+    onFocus={() => setRawTextFocused(true)}
+    onBlur={() => setRawTextFocused(false)}
+  />
+  {fieldErrors.rawExtractedText ? (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+      <Icon name="alert-circle-outline" size={12} color={colors.error} />
+      <Text style={{ fontSize: 11, color: colors.error, fontWeight: '500' }}>
+        {fieldErrors.rawExtractedText}
+      </Text>
+    </View>
+  ) : null}
+</View>
               <TouchableOpacity
                 style={[shS.saveBtn, saving && { opacity: 0.65 }]}
                 onPress={handleSaveWithErrors}
@@ -1051,11 +1091,11 @@ const ContactDetailModal = ({
                     year: 'numeric', month: 'long', day: 'numeric',
                   })}
                 />
-                <InfoRow
+                {/* <InfoRow
                   icon="finger-print-outline"
                   label="Contact ID"
                   value={String(contact.id)}
-                />
+                /> */}
               </SectionCard>
 
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
@@ -1170,6 +1210,7 @@ export default function ContactsScreen() {
   const [editVisible, setEditVisible]         = useState(false);
   const [editContact, setEditContact]         = useState<ContactDetail | null>(null);
   const [saving, setSaving]                   = useState(false);
+  
   const [currentPage, setCurrentPage] = useState(1);
 
   const CONTACTS_PER_PAGE = 10;

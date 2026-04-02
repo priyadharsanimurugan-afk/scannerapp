@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "CardScan Pro",
-    "slug": "cardscannerpro",
+    "slug": "CardScannerPro",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/scannerlogo.png",

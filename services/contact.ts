@@ -1,8 +1,10 @@
 import api from "./api";
 import { CreateContact, ContactDetail, PaginatedContacts } from "@/types/contact";
 import * as FileSystem from "expo-file-system/legacy";
-import * as Sharing from "expo-sharing";
 import { Buffer } from "buffer";
+import { Alert, Platform } from 'react-native';
+import * as Sharing from 'expo-sharing';
+
 
 // Create a new contact
 export const createContact = async (data: CreateContact): Promise<ContactDetail> => {
@@ -40,20 +42,54 @@ export const exportContacts = async () => {
       responseType: "arraybuffer",
     });
 
-    const fileUri = FileSystem.documentDirectory + "contacts.xlsx";
-
     const base64Data = Buffer.from(res.data, "binary").toString("base64");
 
-    await FileSystem.writeAsStringAsync(fileUri, base64Data, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
+    if (Platform.OS === 'android') {
+      // Write directly to Downloads folder on Android
+      const downloadDir = FileSystem.StorageAccessFramework;
+      const permissions = await downloadDir.requestDirectoryPermissionsAsync();
 
-    await Sharing.shareAsync(fileUri);
+      if (!permissions.granted) {
+        // Fallback: save to app's document directory
+        const fileUri = FileSystem.documentDirectory + "contacts.xlsx";
+        await FileSystem.writeAsStringAsync(fileUri, base64Data, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        Alert.alert('Saved', `File saved to app storage: contacts.xlsx`);
+        return;
+      }
+
+      const fileUri = await downloadDir.createFileAsync(
+        permissions.directoryUri,
+        "contacts.xlsx",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+
+      await downloadDir.writeAsStringAsync(fileUri, base64Data, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      Alert.alert('Success', 'contacts.xlsx saved to your selected folder');
+
+    } else {
+      // iOS — save to documents directory and share
+      const fileUri = FileSystem.documentDirectory + "contacts.xlsx";
+      await FileSystem.writeAsStringAsync(fileUri, base64Data, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      await Sharing.shareAsync(fileUri, {
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        dialogTitle: 'Save contacts.xlsx',
+        UTI: 'com.microsoft.excel.xlsx',
+      });
+    }
+
   } catch (error) {
     console.error(error);
     throw new Error("Export failed");
   }
 };
+
 
 export const exportContactsWeb = async () => {
   try {
