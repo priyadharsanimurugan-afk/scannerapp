@@ -18,6 +18,7 @@ export const downgradeUser = async (userId: string) => {
   const res = await api.post(`/admin/downgrade/${userId}`);
   return res.data;
 };
+
 /* =========================
    GET: All Premium Requests
 ========================= */
@@ -49,6 +50,26 @@ export const reviewPremiumRequest = async (
   const res = await api.post(
     `/admin/premium-requests/review/${id}`,
     payload
+  );
+  return res.data;
+};
+
+export interface Contact {
+  id: number;
+  name: string;
+  phone: string;
+  email?: string;
+}
+/* =========================
+   GET: All Contacts
+========================= */
+export const getAllContacts = async (
+  userId: number,
+  page: number = 1,
+  pageSize: number = 20
+): Promise<Contact[]> => {
+  const res = await api.get(
+    `/admin/all-contact?userId=${userId}&page=${page}&pageSize=${pageSize}`
   );
   return res.data;
 };
